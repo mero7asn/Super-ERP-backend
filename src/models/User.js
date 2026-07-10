@@ -43,7 +43,19 @@ const userSchema = new mongoose.Schema({
       'CRM Developer',
       'CRM Consultant',
       'System Architect',
-      'Executive User'
+      'Executive User',
+      'HRM System Administrator',
+      'HR Manager',
+      'HR Specialist (Generalist)',
+      'Recruitment Specialist (Talent Acquisition)',
+      'Payroll Specialist',
+      'HR Business Partner',
+      'Training and Development Specialist',
+      'Performance Management Specialist',
+      'Attendance and Time Officer',
+      'Employee (General User)',
+      'HR Director / Executive HR User',
+      'RTM Team Member'
     ],
     required: true
   },
@@ -75,6 +87,44 @@ const userSchema = new mongoose.Schema({
     server: { type: String, default: null },
     port: { type: String, default: null },
     userId: { type: String, default: null }
+  },
+  department: {
+    type: String,
+    default: ''
+  },
+  auxStatus: {
+    type: String,
+    enum: ['Live', 'Training', 'Break', 'Coaching', 'Logged out'],
+    default: 'Logged out'
+  },
+  isPersonalTeamLeader: {
+    type: Boolean,
+    default: false
+  },
+  shift: {
+    type: String,
+    default: 'Day Shift (09:00 - 17:00)'
+  },
+  weeklyOffDays: {
+    type: [String],
+    default: ['Friday', 'Saturday']
+  },
+  rtmFlagged: {
+    type: Boolean,
+    default: false
+  },
+  rtmFlaggedAt: {
+    type: Date,
+    default: null
+  },
+  rtmFlagReason: {
+    type: String,
+    enum: ['Extended Live', 'Out of Shift', 'Manual', null],
+    default: null
+  },
+  rtmSuppressUntil: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

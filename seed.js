@@ -151,6 +151,71 @@ const SEED_USERS = [
       canManageCampaigns: false, canManageUsers: false
     }
   },
+  {
+    firstName: 'HRM',
+    lastName: 'Admin',
+    email: 'hrm.admin@erp.com',
+    password: 'Admin@1234',
+    role: 'HRM System Administrator',
+    department: 'HR'
+  },
+  {
+    firstName: 'HR',
+    lastName: 'Manager',
+    email: 'hr.manager@erp.com',
+    password: 'Manager@1234',
+    role: 'HR Manager',
+    department: 'HR',
+    isPersonalTeamLeader: true // designated team leader
+  },
+  {
+    firstName: 'HR',
+    lastName: 'Specialist',
+    email: 'hr.spec@erp.com',
+    password: 'Specialist@1234',
+    role: 'HR Specialist (Generalist)',
+    department: 'Personal'
+  },
+  {
+    firstName: 'Talent',
+    lastName: 'Acquisition',
+    email: 'talent@erp.com',
+    password: 'Talent@1234',
+    role: 'Recruitment Specialist (Talent Acquisition)',
+    department: 'Talent Acquisition'
+  },
+  {
+    firstName: 'Payroll',
+    lastName: 'Specialist',
+    email: 'payroll@erp.com',
+    password: 'Payroll@1234',
+    role: 'Payroll Specialist',
+    department: 'Payroll'
+  },
+  {
+    firstName: 'HR',
+    lastName: 'Partner',
+    email: 'hrbp@erp.com',
+    password: 'Hrbp@1234',
+    role: 'HR Business Partner',
+    department: 'HR'
+  },
+  {
+    firstName: 'Training',
+    lastName: 'Specialist',
+    email: 'training@erp.com',
+    password: 'Training@1234',
+    role: 'Training and Development Specialist',
+    department: 'Training'
+  },
+  {
+    firstName: 'Employee',
+    lastName: 'One',
+    email: 'employee1@erp.com',
+    password: 'Employee@1234',
+    role: 'Employee (General User)',
+    department: 'Sales'
+  }
 ];
 
 const seed = async () => {
