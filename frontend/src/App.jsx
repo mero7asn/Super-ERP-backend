@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { AuxProvider } from './context/AuxContext';
 import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
+import AuxTopBar from './components/AuxTopBar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
@@ -20,6 +22,16 @@ import TeamsPage from './pages/TeamsPage';
 import SettingsPage from './pages/SettingsPage';
 import DevToolsPage from './pages/DevToolsPage';
 import CampaignFormPage from './pages/CampaignFormPage';
+import EmailsPage from './pages/EmailsPage';
+import RtmMonitorPage from './pages/RtmMonitorPage';
+import HrmDashboardPage from './pages/hrm/HrmDashboardPage';
+import PersonalPage from './pages/hrm/PersonalPage';
+import PayrollPage from './pages/hrm/PayrollPage';
+import TrainingPage from './pages/hrm/TrainingPage';
+import TalentAcquisitionPage from './pages/hrm/TalentAcquisitionPage';
+import PartnershipsPage from './pages/hrm/PartnershipsPage';
+import MySchedulePage from './pages/ess/MySchedulePage';
+import MyPayrollPage from './pages/ess/MyPayrollPage';
 import { useAuth } from './context/AuthContext';
 
 // Layout wrapper: renders Sidebar + content for authenticated pages
@@ -27,7 +39,10 @@ const AppLayout = ({ children }) => {
   return (
     <div className="app-layout">
       <Sidebar />
-      <main className="main-content">{children}</main>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <AuxTopBar />
+        <main className="main-content" style={{ marginTop: 48 }}>{children}</main>
+      </div>
     </div>
   );
 };
@@ -241,6 +256,144 @@ const AppRoutes = () => {
         }
       />
 
+      {/* Protected: Internal Emails */}
+      <Route
+        path="/emails"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <EmailsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: RTM Live Monitor */}
+      <Route
+        path="/rtm"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'RTM Team Member', 'Super CRM Administrator',
+            'HRM System Administrator', 'HR Manager'
+          ]}>
+            <AppLayout>
+              <RtmMonitorPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: HRM Dashboard */}
+      <Route
+        path="/hrm"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <HrmDashboardPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: HRM Personal */}
+      <Route
+        path="/hrm/personal"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'HR Specialist (Generalist)', 'HR Business Partner', 'Employee (General User)'
+          ]}>
+            <AppLayout>
+              <PersonalPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: HRM Payroll */}
+      <Route
+        path="/hrm/payroll"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Payroll Specialist', 'Employee (General User)'
+          ]}>
+            <AppLayout>
+              <PayrollPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: Employee Self-Service — My Schedule */}
+      <Route
+        path="/ess/schedule"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <MySchedulePage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: Employee Self-Service — My Payroll */}
+      <Route
+        path="/ess/payroll"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <MyPayrollPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: HRM Training */}
+      <Route
+        path="/hrm/training"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Training and Development Specialist', 'Employee (General User)'
+          ]}>
+            <AppLayout>
+              <TrainingPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: HRM Talent Acquisition */}
+      <Route
+        path="/hrm/talent"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Recruitment Specialist (Talent Acquisition)'
+          ]}>
+            <AppLayout>
+              <TalentAcquisitionPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: HRM Partnerships */}
+      <Route
+        path="/hrm/partnerships"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'HR Business Partner', 'Employee (General User)'
+          ]}>
+            <AppLayout>
+              <PartnershipsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
       {/* Protected: CRM Dev Tools */}
       <Route
         path="/devtools"
@@ -279,7 +432,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <AuxProvider>
+          <AppRoutes />
+        </AuxProvider>
       </AuthProvider>
     </BrowserRouter>
   );

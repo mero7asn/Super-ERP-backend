@@ -7,6 +7,11 @@ const DEPT_COLORS = {
   'Customer Support': { c1: '#F59E0B', c2: '#F97316', badge: 'badge-converted', icon: '🎧' },
   'Marketing': { c1: '#8B5CF6', c2: '#EC4899', badge: 'badge-meta', icon: '📣' },
   'Technology': { c1: '#10B981', c2: '#14B8A6', badge: 'badge-qualified', icon: '⚙️' },
+  'Personal': { c1: '#3B82F6', c2: '#60A5FA', badge: 'badge-new', icon: '👤' },
+  'Payroll': { c1: '#10B981', c2: '#34D399', badge: 'badge-qualified', icon: '💵' },
+  'Training': { c1: '#F59E0B', c2: '#FBBF24', badge: 'badge-converted', icon: '📚' },
+  'Talent Acquisition': { c1: '#8B5CF6', c2: '#A78BFA', badge: 'badge-meta', icon: '🎯' },
+  'BD & People Culture': { c1: '#EC4899', c2: '#F472B6', badge: 'badge-meta', icon: '🤝' },
 };
 
 const Avatar = ({ firstName, lastName, size = 36, colors }) => {
@@ -124,7 +129,10 @@ const TeamsPage = () => {
 
   if (loading) return <div className="loading-state"><div className="spinner" />Loading teams…</div>;
 
-  const departments = ['All', 'Sales', 'Customer Support', 'Marketing', 'Technology'];
+  const departments = [
+    'All', 'Sales', 'Customer Support', 'Marketing', 'Technology',
+    'Personal', 'Payroll', 'Training', 'Talent Acquisition', 'BD & People Culture'
+  ];
   const filteredTeams = activeTab === 'All' ? teams : teams.filter(t => t.department === activeTab);
   const filteredUnassigned = activeTab === 'All' ? unassigned : unassigned.filter(u => {
     const deptMap = {
@@ -132,6 +140,11 @@ const TeamsPage = () => {
       'Customer Support': ['Customer Support Agent'],
       Marketing: ['Marketing Specialist'],
       Technology: ['CRM Developer', 'CRM Consultant'],
+      Personal: ['HR Specialist (Generalist)', 'Employee (General User)'],
+      Payroll: ['Payroll Specialist'],
+      Training: ['Training and Development Specialist'],
+      'Talent Acquisition': ['Recruitment Specialist (Talent Acquisition)'],
+      'BD & People Culture': ['HR Business Partner']
     };
     return deptMap[activeTab]?.includes(u.role);
   });

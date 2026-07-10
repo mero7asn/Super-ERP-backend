@@ -30,6 +30,10 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const offerRoutes = require('./routes/offerRoutes');
+const hrmRoutes = require('./routes/hrmRoutes');
+const payrollRoutes = require('./routes/payrollRoutes');
+const essRoutes = require('./routes/essRoutes');
+const gatewayRoutes = require('./routes/gatewayRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -39,6 +43,10 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/offers', offerRoutes);
+app.use('/api/hrm', hrmRoutes);
+app.use('/api/payroll', payrollRoutes);
+app.use('/api/ess', essRoutes);
+app.use('/api/gateway', gatewayRoutes);
 
 // Base route
 app.get('/', (req, res) => {

@@ -30,3 +30,15 @@ exports.protect = async (req, res, next) => {
     return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
+
+// Employee Self-Service scope guard.
+// Forces every downstream query to be restricted to the authenticated user,
+// ignoring any client-supplied employeeId. Prevents IDOR on private views.
+exports.enforceSelfScope = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Not authorized' });
+  }
+  req.scopeEmployeeId = req.user._id;
+  next();
+};
+

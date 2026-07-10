@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import { Icon } from '../components/Icons';
+import { DEPARTMENTS, getRolesByDepartment, getDepartmentByRole } from '../services/departmentJobs';
 
 const roleBadge = (role) => {
   const map = {
@@ -36,6 +37,7 @@ const UsersPage = () => {
     password: '',
     roleName: 'Sales Agent'
   });
+  const [selectedDept, setSelectedDept] = useState('Sales');
   const navigate = useNavigate();
 
   const fetchUsers = async () => {
@@ -60,6 +62,7 @@ const UsersPage = () => {
       await API.post('/auth/register', newUser);
       await fetchUsers();
       setShowModal(false);
+      setSelectedDept('Sales');
       setNewUser({ firstName: '', lastName: '', title: '', email: '', password: '', roleName: 'Sales Agent' });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create user');
@@ -232,20 +235,29 @@ const UsersPage = () => {
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Role</label>
+                <label className="form-label">Department</label>
+                <select
+                  className="form-input"
+                  value={selectedDept}
+                  onChange={e => {
+                    const dept = e.target.value;
+                    setSelectedDept(dept);
+                    const roles = getRolesByDepartment(dept);
+                    setNewUser(p => ({ ...p, roleName: roles[0] || '' }));
+                  }}
+                >
+                  {DEPARTMENTS.map(d => (
+                    <option key={d.id} value={d.id}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Job / Role</label>
                 <select className="form-input" value={newUser.roleName} onChange={e => setNewUser(p => ({ ...p, roleName: e.target.value }))}>
-                  <option value="Sales Agent">Sales Agent</option>
-                  <option value="Sales Manager">Sales Manager</option>
-                  <option value="Customer Support Agent">Customer Support Agent</option>
-                  <option value="Customer Support Manager">Customer Support Manager</option>
-                  <option value="Marketing Specialist">Marketing Specialist</option>
-                  <option value="Marketing Manager">Marketing Manager</option>
-                  <option value="Business Analyst">Business Analyst</option>
-                  <option value="CRM Developer">CRM Developer</option>
-                  <option value="CRM Consultant">CRM Consultant</option>
-                  <option value="System Architect">System Architect</option>
-                  <option value="Super CRM Administrator">Super CRM Administrator</option>
-                  <option value="Executive User">Executive User</option>
+                  {getRolesByDepartment(selectedDept).map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                 </select>
               </div>
             </div>

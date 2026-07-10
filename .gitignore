@@ -1,0 +1,13 @@
+# Environment secrets
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Uploads (user files)
+uploads/
+
+# Build output
+dist/
+build/

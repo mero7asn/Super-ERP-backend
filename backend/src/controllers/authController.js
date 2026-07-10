@@ -120,14 +120,22 @@ exports.getTeams = async (req, res) => {
       { department: 'Customer Support', managerRole: 'Customer Support Manager', memberRoles: ['Customer Support Agent'] },
       { department: 'Marketing',        managerRole: 'Marketing Manager',        memberRoles: ['Marketing Specialist'] },
       { department: 'Technology',       managerRole: 'System Architect',         memberRoles: ['CRM Developer', 'CRM Consultant'] },
+      { department: 'Personal',         managerRole: 'HR Manager',               memberRoles: ['HR Specialist (Generalist)', 'Employee (General User)'] },
+      { department: 'Payroll',          managerRole: 'HR Manager',               memberRoles: ['Payroll Specialist'] },
+      { department: 'Training',         managerRole: 'Training and Development Specialist', memberRoles: [] },
+      { department: 'Talent Acquisition', managerRole: 'Recruitment Specialist (Talent Acquisition)', memberRoles: [] },
+      { department: 'BD & People Culture', managerRole: 'HR Business Partner',  memberRoles: [] },
     ];
 
     // Roles that report directly to Executive User (no sub-teams)
-    const EXEC_DIRECT_ROLES = ['Super CRM Administrator', 'Business Analyst', 'Sales Manager', 'Marketing Manager', 'Customer Support Manager', 'System Architect'];
+    const EXEC_DIRECT_ROLES = [
+      'Super CRM Administrator', 'Business Analyst', 'Sales Manager', 'Marketing Manager', 
+      'Customer Support Manager', 'System Architect', 'HRM System Administrator', 'HR Manager'
+    ];
 
     const allManagerRoles = HIERARCHY.map(h => h.managerRole);
     const allMemberRoles  = HIERARCHY.flatMap(h => h.memberRoles);
-    const execDirectRoles = ['Super CRM Administrator', 'Business Analyst'];
+    const execDirectRoles = ['Super CRM Administrator', 'Business Analyst', 'HRM System Administrator'];
 
     const [executives, managers, members, execDirects] = await Promise.all([
       User.find({ role: 'Executive User' }).select('firstName lastName email role isActive'),
@@ -238,6 +246,18 @@ exports.getUserById = async (req, res) => {
     const user = await User.findById(req.params.id).populate('supervisor', 'firstName lastName email role');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Get minimal users list (public to authenticated users for email dropdown)
+// @route   GET /api/auth/users-list
+// @access  Private
+exports.getUsersList = async (req, res) => {
+  try {
+    const users = await User.find({ isActive: true }).select('firstName lastName email role');
+    res.json({ success: true, data: users });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
