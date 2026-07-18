@@ -1,6 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { AuxProvider } from './context/AuxContext';
 import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import AuxTopBar from './components/AuxTopBar';
@@ -8,7 +6,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
 import LeadDistributionPage from './pages/LeadDistributionPage';
-import OffersPage from './pages/OffersPage';
+import LeadDetailsPage from './pages/LeadDetailsPage';
 import BookingLookupPage from './pages/BookingLookupPage';
 import TicketsPage from './pages/TicketsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -19,10 +17,14 @@ import CampaignsPage from './pages/CampaignsPage';
 import UsersPage from './pages/UsersPage';
 import UserProfilePage from './pages/UserProfilePage';
 import TeamsPage from './pages/TeamsPage';
+import MyTeamPage from './pages/MyTeamPage';
+import AllTeamsPage from './pages/AllTeamsPage';
 import SettingsPage from './pages/SettingsPage';
 import DevToolsPage from './pages/DevToolsPage';
 import CampaignFormPage from './pages/CampaignFormPage';
+import PaymentPage from './pages/PaymentPage';
 import EmailsPage from './pages/EmailsPage';
+import SentEmailsPage from './pages/SentEmailsPage';
 import RtmMonitorPage from './pages/RtmMonitorPage';
 import HrmDashboardPage from './pages/hrm/HrmDashboardPage';
 import PersonalPage from './pages/hrm/PersonalPage';
@@ -106,13 +108,13 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Protected: Offers for Lead */}
+      {/* Protected: Lead Details (Unified Offers/Notes etc) */}
       <Route
-        path="/leads/:leadId/offers"
+        path="/leads/:id"
         element={
           <ProtectedRoute>
             <AppLayout>
-              <OffersPage />
+              <LeadDetailsPage />
             </AppLayout>
           </ProtectedRoute>
         }
@@ -203,7 +205,7 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Protected: Teams */}
+      {/* Protected: Teams — split into "My Team" and "All Teams" */}
       <Route
         path="/teams"
         element={
@@ -215,6 +217,36 @@ const AppRoutes = () => {
           ]}>
             <AppLayout>
               <TeamsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teams/my"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'System Architect',
+            'Sales Manager', 'Sales Agent',
+            'Customer Support Manager', 'Customer Support Agent',
+            'Marketing Manager', 'Marketing Specialist'
+          ]}>
+            <AppLayout>
+              <MyTeamPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teams/all"
+        element={
+          <ProtectedRoute allowedRoles={[
+            'Super CRM Administrator', 'System Architect',
+            'Sales Manager', 'Sales Agent',
+            'Customer Support Manager', 'Customer Support Agent',
+            'Marketing Manager', 'Marketing Specialist'
+          ]}>
+            <AppLayout>
+              <AllTeamsPage />
             </AppLayout>
           </ProtectedRoute>
         }
@@ -263,6 +295,18 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <AppLayout>
               <EmailsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected: Sent Emails / Email History */}
+      <Route
+        path="/emails/sent"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <SentEmailsPage />
             </AppLayout>
           </ProtectedRoute>
         }
@@ -409,6 +453,9 @@ const AppRoutes = () => {
       {/* Public: Campaign Lead Form */}
       <Route path="/form/:slug" element={<CampaignFormPage />} />
 
+      {/* Public: Offer Payment Page */}
+      <Route path="/pay/:token" element={<PaymentPage />} />
+
       {/* Unauthorized */}
       <Route
         path="/unauthorized"
@@ -431,11 +478,7 @@ const AppRoutes = () => {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AuxProvider>
-          <AppRoutes />
-        </AuxProvider>
-      </AuthProvider>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
