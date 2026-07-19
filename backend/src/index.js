@@ -2,7 +2,12 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
-const cron = require('node-cron');
+let cron = null;
+try {
+  cron = require('node-cron');
+} catch (err) {
+  console.error('[Startup] node-cron not available, scheduled jobs disabled:', err.message);
+}
 const connectDB = require('./config/db');
 
 dotenv.config();
@@ -99,59 +104,68 @@ const runStartupTasks = () => {
     updateExpiredCampaigns();
     setInterval(updateExpiredCampaigns, 5 * 60 * 1000);
 
-    cron.schedule('0 9 25 * *', async () => {
-      try {
-        console.log('[Cron] Running monthly schedule reminder job...');
-        const User = require('./models/User');
-        const DetailedSchedule = require('./models/DetailedSchedule');
-        const Email = require('./models/Email');
+    if (cron) {
+      cron.schedule('0 9 25 * *', async () => {
+        try {
+          console.log('[Cron] Running monthly schedule reminder job...');
+          const User = require('./models/User');
+          const DetailedSchedule = require('./models/DetailedSchedule');
+          const Email = require('./models/Email');
 
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = now.getMonth() + 1;
-        const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+          const now = new Date();
+          const y = now.getFullYear();
+          const m = now.getMonth() + 1;
+          const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
 
-        const employees = await User.find({ isActive: true });
-        let count = 0;
+          const employees = await User.find({ isActive: true });
+          let count = 0;
 
-        for (const emp of employees) {
-          const existing = await DetailedSchedule.findOne({ employeeId: emp._id, month: nextMonth });
-          if (!existing) {
-            await Email.create({
-              senderId: emp._id,
-              recipientId: emp._id,
-              subject: `Reminder: Please set your schedule for ${nextMonth}`,
-              body: `Dear ${emp.firstName},\n\nPlease set your work schedule for ${nextMonth} before the month starts.\n\nGo to Personal Department > Profile & Schedule to update your schedule.\n\nBest regards,\nHR Department`
-            });
-            count++;
+          for (const emp of employees) {
+            const existing = await DetailedSchedule.findOne({ employeeId: emp._id, month: nextMonth });
+            if (!existing) {
+              await Email.create({
+                senderId: emp._id,
+                recipientId: emp._id,
+                subject: `Reminder: Please set your schedule for ${nextMonth}`,
+                body: `Dear ${emp.firstName},\n\nPlease set your schedule for ${nextMonth} before the month starts.\n\nGo to Personal Department > Profile & Schedule to update your schedule.\n\nBest regards,\nHR Department`
+              });
+              count++;
+            }
           }
+          console.log(`[Cron] Sent ${count} schedule reminders for ${nextMonth}`);
+        } catch (err) {
+          console.error('[Cron] Schedule reminder error:', err);
         }
-        console.log(`[Cron] Sent ${count} schedule reminders for ${nextMonth}`);
-      } catch (err) {
-        console.error('[Cron] Schedule reminder error:', err);
-      }
-    });
-    console.log('[Cron] Monthly schedule reminder job registered (25th of each month, 9:00 AM)');
+      });
+      console.log('[Cron] Monthly schedule reminder job registered (25th of each month, 9:00 AM)');
+    } else {
+      console.log('[Cron] Skipping monthly schedule reminder job (node-cron unavailable)');
+    }
 
-    cron.schedule('0 * * * *', async () => {
-      try {
-        const Offer = require('./models/Offer');
-        const now = new Date();
-        const result = await Offer.updateMany(
-          {
-            status: { $in: ['Sent', 'Viewed'] },
-            validUntil: { $lt: now }
-          },
-          { $set: { status: 'Expired' } }
-        );
-        if (result.modifiedCount > 0) {
-          console.log(`[Cron] Expired ${result.modifiedCount} overdue offer(s)`);
+    if (cron) {
+      cron.schedule('0 * * * *', async () => {
+        try {
+          const Offer = require('./models/Offer');
+          const now = new Date();
+          const result = await Offer.updateMany(
+            {
+              status: { $in: ['Sent', 'Viewed'] },
+              validUntil: { $lt: now }
+            },
+            { $set: { status: 'Expired' } }
+          );
+          if (result.modifiedCount > 0) {
+            console.log(`[Cron] Expired ${result.modifiedCount} overdue offer(s)`);
+          }
+        } catch (err) {
+          console.error('[Cron] Offer expiry error:', err.message);
         }
-      } catch (err) {
-        console.error('[Cron] Offer expiry error:', err.message);
-      }
-    });
-    console.log('[Cron] Hourly offer expiry job registered');
+      });
+      console.log('[Cron] Hourly offer expiry job registered');
+    } else {
+      console.log('[Cron] Skipping hourly offer expiry job (node-cron unavailable)');
+    }
+
   } catch (err) {
     console.error('[Startup] Error running startup tasks:', err.message);
   }
