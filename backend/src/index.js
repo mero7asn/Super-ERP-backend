@@ -31,6 +31,22 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('/*splat', cors(corsOptions));
 
+// Belt-and-suspenders manual CORS preflight handler. This guarantees the
+// Access-Control-Allow-* headers are returned on OPTIONS even if the `cors`
+// package is not bundled in the deployed serverless function.
+app.use((req, res, next) => {
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 

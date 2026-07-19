@@ -5,73 +5,55 @@ const path = require('path');
 const cron = require('node-cron');
 const connectDB = require('./config/db');
 
-// Load env vars
 dotenv.config();
+
+connectDB().catch(err => {
+  console.error('Unexpected error during DB connection:', err);
+});
 
 const app = express();
 
-// Manual OPTIONS preflight handler registered FIRST so it returns 204 with
-// CORS headers without depending on the cors package for preflight.
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin;
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader(
-      'Access-Control-Allow-Methods',
-      'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-    );
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization'
-    );
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    return res.sendStatus(204);
-  }
-  next();
-});
-
-// Connect to database (truly non-blocking on failure so CORS preflight still works)
-let dbConnected = false;
-try {
-  const dbPromise = connectDB();
-  if (dbPromise && typeof dbPromise.then === 'function') {
-    dbPromise
-      .then(connected => {
-        dbConnected = Boolean(connected);
-      })
-      .catch(err => {
-        console.error('Unexpected error during DB connection:', err);
-      });
-  }
-} catch (err) {
-  console.error('Unexpected error initiating DB connection:', err);
-}
-
-// Body parser
-app.use(express.json());
-
-// Enable CORS for normal (non-preflight) requests
-const corsOptions = {
+app.use(cors({
   origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-};
-app.use(cors(corsOptions));
-app.options('/*splat', cors(corsOptions));
+}));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
+app.options('*', cors());
 
-// Health check / DB availability gate (preflight already handled above)
+// Belt-and-suspenders manual CORS preflight handler. This guarantees the
+// Access-Control-Allow-* headers are returned on OPTIONS even if the `cors`
+// package is not bundled in the deployed serverless function.
 app.use((req, res, next) => {
-  if (!dbConnected) {
-    return res.status(503).json({ message: 'Service unavailable: database connection failed' });
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
   }
   next();
 });
 
-// Mount routers
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+  next();
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
 const authRoutes = require('./routes/authRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const leadRoutes = require('./routes/leadRoutes');
@@ -104,16 +86,12 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/public/pay', paymentRoutes);
 app.use('/api/bookings', bookingRoutes);
 
-// Base route
 app.get('/', (req, res) => {
   res.send('CRM Backend API is running...');
 });
 
-// Run-on-startup tasks. On Vercel (serverless) app.listen() never fires,
-// so these are triggered eagerly here instead of inside a listen callback.
 const runStartupTasks = () => {
   try {
-    // Clean up stale recordLocator unique index from prior schema (Offer creation blocker)
     const Offer = require('./models/Offer');
     if (Offer.collection) {
       const cleanupIndex = async () => {
@@ -133,12 +111,10 @@ const runStartupTasks = () => {
       });
     }
 
-    // Set up periodic check for expired campaigns (every 5 minutes)
     const { updateExpiredCampaigns } = require('./services/campaignHelper');
     updateExpiredCampaigns();
     setInterval(updateExpiredCampaigns, 5 * 60 * 1000);
 
-    // Monthly schedule reminder: on the 25th of every month at 9:00 AM
     cron.schedule('0 9 25 * *', async () => {
       try {
         console.log('[Cron] Running monthly schedule reminder job...');
@@ -173,7 +149,6 @@ const runStartupTasks = () => {
     });
     console.log('[Cron] Monthly schedule reminder job registered (25th of each month, 9:00 AM)');
 
-    // Hourly offer expiry: mark Sent/Viewed offers past their validUntil as Expired
     cron.schedule('0 * * * *', async () => {
       try {
         const Offer = require('./models/Offer');
@@ -197,21 +172,11 @@ const runStartupTasks = () => {
     console.error('[Startup] Error running startup tasks:', err.message);
   }
 };
-try {
-  runStartupTasks();
-} catch (err) {
-  console.error('[Startup] Unexpected error invoking startup tasks:', err.message);
-}
+runStartupTasks();
 
-// Export for serverless (Vercel @vercel/node). On Vercel the module is invoked
-// per-request; app.listen is not used. Keep listen only for local `npm start`.
 if (require.main === module) {
-  try {
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  } catch (err) {
-    console.error('[Startup] Error starting local server:', err.message);
-  }
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
 module.exports = app;
