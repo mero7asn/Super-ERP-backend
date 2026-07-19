@@ -71,6 +71,16 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Surface the platform business model so the client can configure the UI.
+    let businessModel = 'service';
+    try {
+      const SystemSetting = require('../models/SystemSetting');
+      const setting = await SystemSetting.findOne({ key: 'businessModel' });
+      if (setting?.value) businessModel = setting.value;
+    } catch (settingErr) {
+      console.error('Failed to load business model setting:', settingErr.message);
+    }
+
     res.json({
       _id: user._id,
       firstName: user.firstName,
@@ -78,6 +88,8 @@ exports.loginUser = async (req, res) => {
       email: user.email,
       role: user.role,
       permissions: user.permissions,
+      onboarded: !!user.onboarded,
+      businessModel,
       token: generateToken(user._id, user.role),
     });
   } catch (error) {
@@ -91,7 +103,21 @@ exports.loginUser = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    res.json(user);
+
+    let businessModel = 'service';
+    try {
+      const SystemSetting = require('../models/SystemSetting');
+      const setting = await SystemSetting.findOne({ key: 'businessModel' });
+      if (setting?.value) businessModel = setting.value;
+    } catch (settingErr) {
+      console.error('Failed to load business model setting:', settingErr.message);
+    }
+
+    res.json({
+      ...user.toObject(),
+      onboarded: !!user.onboarded,
+      businessModel,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

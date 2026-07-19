@@ -74,6 +74,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  onboarded: {
+    type: Boolean,
+    default: false
+  },
   supervisor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
