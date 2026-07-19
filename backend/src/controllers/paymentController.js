@@ -1,12 +1,15 @@
 const Offer = require('../models/Offer');
 const OfferHistory = require('../models/OfferHistory');
+const Booking = require('../models/Booking');
+const Lead = require('../models/Lead');
+const { sendRawEmail } = require('../services/emailService');
 
-// Build an absolute URL for the public payment page from the incoming request.
-const buildPaymentLink = (req, token) => {
-  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const host = req.headers['x-forwarded-host'] || req.get('host');
-  return `${proto}://${host}/pay/${token}`;
-};
+// Build an absolute URL for the public payment page on the FRONTEND app.
+// The payment page lives on the client (Vercel frontend), not the API, so we
+// must use the client origin — not the API host — when generating the link.
+const CLIENT_URL = process.env.CLIENT_URL || 'https://super-erp-frontend.vercel.app';
+
+const buildPaymentLink = (token) => `${CLIENT_URL}/pay/${token}`;
 
 // @desc    Get public offer details for the payment page (by payment token)
 // @route   GET /api/public/pay/:token
@@ -96,20 +99,102 @@ exports.processPublicPayment = async (req, res) => {
     offer.paidAt = new Date();
     await offer.save();
 
+    // Create a Booking / Order record for the confirmed purchase.
+    let booking = await Booking.findOne({ offer: offer._id });
+    if (!booking) {
+      const lead = await Lead.findById(offer.lead);
+      booking = await Booking.create({
+        offer: offer._id,
+        lead: offer.lead,
+        agent: offer.createdBy,
+        title: offer.title,
+        description: offer.description || '',
+        amount: offer.price,
+        paymentMethod: method,
+        paidAt: offer.paidAt,
+        status: 'Confirmed'
+      });
+    }
+
+    // Keep the offer's bookingRef / recordLocator in sync with the booking.
+    offer.bookingRef = booking.bookingRef;
+    offer.recordLocator = booking.recordLocator;
+    await offer.save();
+
     await OfferHistory.create({
       offerId: offer._id,
       action: 'paid',
       performedBy: offer.createdBy,
-      details: `Payment of $${Number(offer.price).toLocaleString()} received via ${method}. Booking Ref: ${offer.bookingRef}`,
+      details: `Payment of $${Number(offer.price).toLocaleString()} received via ${method}. Booking Ref: ${booking.bookingRef}`,
       version: offer.version,
-      metadata: { method, bookingRef: offer.bookingRef, amount: offer.price }
+      metadata: { method, bookingRef: booking.bookingRef, amount: offer.price }
     });
+
+    // Send a confirmation email to the customer (public/unauthenticated send).
+    try {
+      const lead = await Lead.findById(offer.lead);
+      if (lead && lead.email) {
+        const payLink = buildPaymentLink(offer.paymentToken);
+        const subject = `Payment Confirmed — ${offer.title}`;
+        const text = `
+Hello ${lead.name},
+
+Thank you for your payment. Your booking is now confirmed.
+
+Booking Reference: ${booking.bookingRef}
+Amount Paid: $${Number(offer.price).toLocaleString()}
+Payment Method: ${method}
+${offer.validUntil ? `Valid Until: ${new Date(offer.validUntil).toLocaleDateString()}` : ''}
+
+You can view or revisit your offer anytime here:
+${payLink}
+
+Best regards,
+Super CRM Team
+        `.trim();
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f4f4;">
+    <tr><td align="center" style="padding:24px 0;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;">
+        <tr><td style="background-color:#16a34a;padding:24px 32px;color:#ffffff;">
+          <h1 style="margin:0;font-size:20px;font-weight:600;">Payment Confirmed 🎉</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Hello ${lead.name},</p>
+          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Thank you for your payment. Your booking is now confirmed.</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f8fafc;border-radius:6px;margin:16px 0;">
+            <tr><td style="padding:16px 24px;">
+              <p style="margin:0 0 8px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Booking Reference</p>
+              <p style="margin:0;font-size:22px;font-weight:700;color:#16a34a;">${booking.bookingRef}</p>
+              <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Amount Paid <strong style="color:#334155;">$${Number(offer.price).toLocaleString()}</strong> via ${method}</p>
+            </td></tr>
+          </table>
+          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>Super CRM Team</strong></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+        `.trim();
+
+        await sendRawEmail({ to: lead.email, subject, text, html });
+      }
+    } catch (emailErr) {
+      // Do not fail the payment if the confirmation email fails.
+      console.error('Failed to send payment confirmation email:', emailErr.message);
+    }
 
     res.json({
       success: true,
       message: 'Payment successful. Booking created.',
       data: {
-        bookingRef: offer.bookingRef,
+        bookingRef: booking.bookingRef,
         amount: offer.price,
         method,
         paidAt: offer.paidAt

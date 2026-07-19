@@ -1,6 +1,69 @@
 const Offer = require('../models/Offer');
+const OfferHistory = require('../models/OfferHistory');
+const OfferVersion = require('../models/OfferVersion');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
+const Email = require('../models/Email');
+const { sendEmail, getGlobalEmailConfig } = require('../services/emailService');
+const { put } = require('@vercel/blob');
+const { buildPaymentLink } = require('./paymentController');
+
+const TRACKED_FIELDS = ['title', 'description', 'offerType', 'price', 'validUntil', 'notes'];
+
+function computeDiff(oldDoc, newDoc) {
+  const changes = {};
+  for (const field of TRACKED_FIELDS) {
+    const from = oldDoc[field];
+    const to = newDoc[field];
+    if (field === 'validUntil') {
+      const fromStr = from ? new Date(from).toISOString() : null;
+      const toStr = to ? new Date(to).toISOString() : null;
+      if (fromStr !== toStr) changes[field] = { from: fromStr, to: toStr };
+    } else if (String(from ?? '') !== String(to ?? '')) {
+      changes[field] = { from: from ?? null, to: to ?? null };
+    }
+  }
+  return changes;
+}
+
+function formatChangeSummary(changes) {
+  if (!changes || Object.keys(changes).length === 0) return '';
+  const parts = Object.keys(changes).map(field => {
+    const { from, to } = changes[field];
+    if (field === 'price') {
+      return `Price ${from != null ? '$' + Number(from).toLocaleString() : '—'} → ${to != null ? '$' + Number(to).toLocaleString() : '—'}`;
+    }
+    if (field === 'validUntil') {
+      const fmt = v => v ? new Date(v).toLocaleDateString() : '—';
+      return `ValidUntil ${fmt(from)} → ${fmt(to)}`;
+    }
+    return `${field} changed`;
+  });
+  return parts.join('; ');
+}
+
+async function createVersionSnapshot(offer, { statusAtSnapshot, requirement, changeSummary, emailRef, createdBy }) {
+  return OfferVersion.findOneAndUpdate(
+    { offerId: offer._id, version: offer.version },
+    {
+      $set: {
+        offerType: offer.offerType,
+        title: offer.title,
+        description: offer.description,
+        price: offer.price,
+        validUntil: offer.validUntil,
+        notes: offer.notes,
+        images: offer.images || [],
+        statusAtSnapshot: statusAtSnapshot || offer.status,
+        changeSummary: changeSummary || '',
+        requirement: requirement || '',
+        emailRef: emailRef || null,
+        createdBy: createdBy || offer.createdBy
+      }
+    },
+    { new: true, upsert: true }
+  );
+}
 
 // @desc    Get offers for a lead
 // @route   GET /api/offers/lead/:leadId
@@ -14,7 +77,6 @@ exports.getOffersByLead = async (req, res) => {
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
-    // Check permissions
     if (isAgent && lead.assignedTo?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to view offers for this lead' });
     }
@@ -42,7 +104,7 @@ exports.getOffersByLead = async (req, res) => {
 // @access  Private (Sales Agent, Manager, Admin)
 exports.createOffer = async (req, res) => {
   try {
-    const { lead, title, description, price, validUntil, notes } = req.body;
+    const { lead, title, description, price, validUntil, notes, offerType } = req.body;
 
     const leadDoc = await Lead.findById(lead);
     if (!leadDoc) return res.status(404).json({ message: 'Lead not found' });
@@ -71,7 +133,6 @@ exports.createOffer = async (req, res) => {
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
-    // Check permissions
     if (isAgent && leadDoc.assignedTo?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to create offers for this lead' });
     }
@@ -89,9 +150,18 @@ exports.createOffer = async (req, res) => {
       createdBy: req.user._id,
       title,
       description,
+      offerType: offerType || 'Service',
       price,
       validUntil,
       notes: notes || ''
+    });
+
+    await OfferHistory.create({
+      offerId: offer._id,
+      action: 'created',
+      performedBy: req.user._id,
+      details: `Offer created as ${offerType || 'Service'}`,
+      metadata: { offerType: offerType || 'Service' }
     });
 
     const populated = await offer.populate('createdBy', 'firstName lastName role');
@@ -117,17 +187,120 @@ exports.updateOffer = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to update this offer' });
     }
 
-    // Don't allow editing sent offers (except status)
-    if (offer.status !== 'Draft' && !isAdmin) {
+    if (offer.status !== 'Draft') {
+      if (!isAdmin) {
+        return res.status(403).json({
+          message: 'This offer has already been sent. Use "Revise" to create a new editable version.'
+        });
+      }
       const allowedUpdates = { status: req.body.status, notes: req.body.notes };
       Object.keys(allowedUpdates).forEach(k => allowedUpdates[k] === undefined && delete allowedUpdates[k]);
+      const oldStatus = offer.status;
       const updated = await Offer.findByIdAndUpdate(req.params.id, allowedUpdates, { new: true, runValidators: true })
         .populate('createdBy', 'firstName lastName role');
+
+      if (req.body.status && req.body.status !== oldStatus) {
+        await OfferHistory.create({
+          offerId: offer._id,
+          action: req.body.status.toLowerCase(),
+          performedBy: req.user._id,
+          details: `Status changed from ${oldStatus} to ${req.body.status}`,
+          version: offer.version,
+          metadata: { oldStatus, newStatus: req.body.status }
+        });
+      }
+
       return res.json({ success: true, data: updated });
     }
 
+    const oldSnapshot = offer.toObject();
     const updated = await Offer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
       .populate('createdBy', 'firstName lastName role');
+
+    const changes = computeDiff(oldSnapshot, updated);
+    const oldStatus = oldSnapshot.status;
+
+    if (Object.keys(changes).length > 0) {
+      await OfferHistory.create({
+        offerId: offer._id,
+        action: 'updated',
+        performedBy: req.user._id,
+        details: `Offer edited (v${updated.version}): ${formatChangeSummary(changes)}`,
+        version: updated.version,
+        changes,
+        metadata: { version: updated.version }
+      });
+    }
+
+    if (req.body.status && req.body.status !== oldStatus) {
+      await OfferHistory.create({
+        offerId: offer._id,
+        action: req.body.status.toLowerCase(),
+        performedBy: req.user._id,
+        details: `Status changed from ${oldStatus} to ${req.body.status}`,
+        version: updated.version,
+        metadata: { oldStatus, newStatus: req.body.status }
+      });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Revise a sent/active offer — freeze current version, open a new editable draft
+// @route   POST /api/offers/:id/revise
+// @access  Private
+exports.reviseOffer = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id).populate('lead');
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isOwner = offer.createdBy.toString() === req.user._id.toString();
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized to revise this offer' });
+    }
+
+    if (offer.status === 'Draft') {
+      return res.status(400).json({ message: 'This offer is still a draft. Edit it directly instead of revising.' });
+    }
+
+    const existingSnapshot = await OfferVersion.findOne({ offerId: offer._id, version: offer.version });
+    if (!existingSnapshot) {
+      await createVersionSnapshot(offer, {
+        statusAtSnapshot: offer.status,
+        requirement: '',
+        changeSummary: '',
+        emailRef: null,
+        createdBy: offer.createdBy
+      });
+    }
+
+    const newVersion = offer.version + 1;
+    const requirement = (req.body.requirement || req.body.revisionNote || '').toString().trim();
+
+    offer.version = newVersion;
+    offer.status = 'Draft';
+    offer.sentAt = null;
+    offer.sentVia = null;
+    offer.revisionNote = requirement;
+    await offer.save();
+
+    const updated = await offer.populate('createdBy', 'firstName lastName role');
+
+    await OfferHistory.create({
+      offerId: offer._id,
+      action: 'revised',
+      performedBy: req.user._id,
+      details: `Revision v${newVersion} started${requirement ? `: ${requirement}` : ''}`,
+      version: newVersion,
+      changes: null,
+      metadata: { fromVersion: newVersion - 1, toVersion: newVersion, requirement }
+    });
+
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
@@ -161,7 +334,7 @@ exports.deleteOffer = async (req, res) => {
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method } = req.body; // 'Email', 'SMS', or 'Both'
+    const { method } = req.body;
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -173,9 +346,16 @@ exports.sendOffer = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to send this offer' });
     }
 
-    // Build message content
     const emailSubject = `New Offer: ${offer.title}`;
-    const emailBody = `
+
+    // Ensure a payment token exists so the customer always gets a pay link.
+    if (!offer.paymentToken) {
+      offer.paymentToken = require('crypto').randomBytes(16).toString('hex');
+      await offer.save();
+    }
+    const paymentLink = buildPaymentLink(offer.paymentToken);
+
+    const textBody = `
 Hello ${offer.lead.name},
 
 We have a special offer for you!
@@ -186,36 +366,234 @@ ${offer.description}
 Price: $${offer.price.toLocaleString()}
 Valid Until: ${new Date(offer.validUntil).toLocaleDateString()}
 
+${paymentLink ? `Pay now: ${paymentLink}` : ''}
+
 Best regards,
 ${offer.createdBy.firstName} ${offer.createdBy.lastName}
     `.trim();
 
+    const imagesHtml = offer.images && offer.images.length > 0
+      ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0;">
+           <tr><td>
+             <p style="margin:0 0 12px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Offer Photos</p>
+             <table role="presentation" cellspacing="8" cellpadding="0" border="0">
+               <tr>
+                 ${offer.images.map(img => {
+                     const imgSrc = img.url.startsWith('http') ? img.url : `http://localhost:5000${img.url}`;
+                     return `
+                   <td style="vertical-align:top;text-align:center;">
+                     <img src="${imgSrc}" alt="${img.caption || 'Offer image'}"
+                       style="width:160px;height:160px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;display:block;" />
+                     ${img.caption ? `<p style="margin:6px 0 0;font-size:11px;color:#94a3b8;">${img.caption}</p>` : ''}
+                   </td>`
+                 }).join('')}
+               </tr>
+             </table>
+           </td></tr>
+         </table>`
+      : '';
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f4f4;">
+    <tr><td align="center" style="padding:24px 0;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;">
+        <tr><td style="background-color:#2563eb;padding:24px 32px;color:#ffffff;">
+          <h1 style="margin:0;font-size:20px;font-weight:600;">${offer.title}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Hello ${offer.lead.name},</p>
+          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">${offer.description}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f8fafc;border-radius:6px;margin:16px 0;">
+            <tr><td style="padding:16px 24px;">
+              <p style="margin:0 0 8px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Price</p>
+              <p style="margin:0;font-size:22px;font-weight:700;color:#2563eb;">$${offer.price.toLocaleString()}</p>
+              <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Valid until <strong style="color:#334155;">${new Date(offer.validUntil).toLocaleDateString()}</strong></p>
+            </td></tr>
+          </table>
+          ${imagesHtml}
+          ${offer.notes ? `<p style="margin:16px 0 0;font-size:13px;color:#64748b;"><em>${offer.notes}</em></p>` : ''}
+          ${paymentLink ? `
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 0;">
+            <tr><td>
+              <a href="${paymentLink}" target="_blank" style="display:inline-block;background-color:#16a34a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:8px;">Pay Now — $${offer.price.toLocaleString()}</a>
+            </td></tr>
+          </table>` : ''}
+          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${offer.createdBy.firstName} ${offer.createdBy.lastName}</strong></p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
+          <p style="margin:0;font-size:11px;color:#94a3b8;">Sent via Super CRM • ${new Date().toLocaleString()}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+    `.trim();
+
     const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Reply for details.`;
 
-    // Send via selected method(s)
+    let globalConfig = null;
     if (method === 'Email' || method === 'Both') {
-      // TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
-      console.log(`Sending email to ${offer.lead.email}:`);
-      console.log(`Subject: ${emailSubject}`);
-      console.log(`Body: ${emailBody}`);
+      globalConfig = await getGlobalEmailConfig();
     }
+
+    let emailStatus = 'sent';
+    let providerError = null;
+    let emailDoc = null;
+
+    if (method === 'Email' || method === 'Both') {
+      emailDoc = await Email.create({
+        senderId: req.user._id,
+        recipientId: offer.lead._id,
+        subject: emailSubject,
+        body: textBody,
+        htmlBody: htmlBody,
+        fromEmail: req.user.smtpUser || req.user.email,
+        toEmail: offer.lead.email,
+        status: 'sent',
+        offerId: offer._id,
+        offerVersion: offer.version
+      });
+
+      try {
+        await sendEmail(req.user, {
+          to: offer.lead.email,
+          subject: emailSubject,
+          text: textBody,
+          html: htmlBody,
+        }, globalConfig);
+      } catch (emailErr) {
+        console.error('Failed to send offer email:', emailErr);
+        emailStatus = 'failed';
+        providerError = emailErr.message;
+        if (emailDoc) {
+          emailDoc.status = 'failed';
+          emailDoc.providerError = emailErr.message;
+          await emailDoc.save();
+        }
+        
+        // Return error immediately so offer is not marked as sent
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Failed to send email. Please check your SMTP settings in your Profile.', 
+          error: emailErr.message 
+        });
+      }
+    }
+
     if (method === 'SMS' || method === 'Both') {
       if (offer.lead.phone) {
-        // TODO: Integrate with SMS service (Twilio, AWS SNS, etc.)
         console.log(`Sending SMS to ${offer.lead.phone}:`);
         console.log(`Message: ${smsMessage}`);
       }
     }
 
-    // Update offer status
+    const prevVersionSnapshot = await OfferVersion.findOne({ offerId: offer._id, version: offer.version });
+    const changeSummary = prevVersionSnapshot ? prevVersionSnapshot.changeSummary : '';
+
+    if (emailStatus === 'sent') {
+      await createVersionSnapshot(offer, {
+        statusAtSnapshot: 'Sent',
+        requirement: offer.revisionNote || '',
+        changeSummary,
+        emailRef: emailDoc ? emailDoc._id : null,
+        createdBy: req.user._id
+      });
+    }
+
     offer.status = 'Sent';
     offer.sentAt = new Date();
     offer.sentVia = method;
     await offer.save();
 
+    const sentEmailId = emailDoc ? emailDoc._id : null;
+    await OfferHistory.create({
+      offerId: offer._id,
+      action: emailStatus === 'failed' ? 'sent' : 'version_sent',
+      performedBy: req.user._id,
+      details: emailStatus === 'failed'
+        ? `Send via ${method} failed (offer not updated)`
+        : `Offer sent via ${method}`,
+      version: offer.version,
+      versionRef: sentEmailId,
+      metadata: { method, sentVia: method, emailStatus, providerError }
+    });
+
     res.json({ success: true, message: `Offer sent via ${method}`, data: offer });
   } catch (error) {
     res.status(500).json({ message: 'Failed to send offer', error: error.message });
+  }
+};
+
+// @desc    Get all offer versions for an offer
+// @route   GET /api/offers/:id/versions
+// @access  Private
+exports.getOfferVersions = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id);
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isOwner = offer.createdBy.toString() === req.user._id.toString();
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized to view versions for this offer' });
+    }
+
+    const versions = await OfferVersion.find({ offerId: offer._id })
+      .populate('emailRef', 'subject toEmail status sentAt providerError')
+      .populate('createdBy', 'firstName lastName')
+      .sort({ version: -1 });
+
+    res.json({ success: true, data: versions });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get a single offer version snapshot
+// @route   GET /api/offers/:id/versions/:vid
+// @access  Private
+exports.getOfferVersion = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id);
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isOwner = offer.createdBy.toString() === req.user._id.toString();
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized to view this version' });
+    }
+
+    const version = await OfferVersion.findOne({ offerId: offer._id, version: parseInt(req.params.vid) })
+      .populate('emailRef', 'subject toEmail status sentAt htmlBody body providerError fromEmail')
+      .populate('createdBy', 'firstName lastName');
+
+    if (!version) return res.status(404).json({ message: 'Version not found' });
+
+    res.json({ success: true, data: version });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get offer history
+// @route   GET /api/offers/:id/history
+// @access  Private
+exports.getOfferHistory = async (req, res) => {
+  try {
+    const history = await OfferHistory.find({ offerId: req.params.id })
+      .populate('performedBy', 'firstName lastName email role')
+      .populate('versionRef', 'version statusAtSnapshot changeSummary')
+      .sort({ timestamp: -1 });
+    res.json({ success: true, data: history });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
@@ -338,7 +716,13 @@ exports.uploadOfferImage = async (req, res) => {
       return res.status(400).json({ message: 'No image file provided' });
     }
 
-    const imageUrl = `/uploads/offers/${req.file.filename}`;
+    const uniqueFilename = `offers/offer-${Date.now()}-${req.file.originalname}`;
+    const blob = await put(uniqueFilename, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype,
+    });
+
+    const imageUrl = blob.url;
     offer.images.push({ url: imageUrl, caption: req.body.caption || '' });
     await offer.save();
 
@@ -396,8 +780,6 @@ exports.initiateAvayaCall = async (req, res) => {
       return res.status(400).json({ message: 'Lead does not have a phone number configured' });
     }
 
-    // TODO: Integrate with actual Avaya API
-    // This would typically trigger a call through Avaya's telephony system
     console.log(`[Avaya Call] Agent: ${agent.avayaExtension}, Calling: ${offer.lead.phone}`);
     console.log(`[Avaya Call] Lead: ${offer.lead.name}, Offer: ${offer.title}`);
 
@@ -408,6 +790,31 @@ exports.initiateAvayaCall = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to initiate call', error: error.message });
+  }
+};
+
+// @desc    Get the public payment link for an offer
+// @route   GET /api/offers/:id/payment-link
+// @access  Private
+exports.getPaymentLink = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id);
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isOwner = offer.createdBy.toString() === req.user._id.toString();
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized to view this offer\'s payment link' });
+    }
+
+    if (!offer.paymentToken) {
+      offer.paymentToken = require('crypto').randomBytes(16).toString('hex');
+      await offer.save();
+    }
+
+    res.json({ success: true, data: { link: buildPaymentLink(offer.paymentToken) } });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
@@ -424,7 +831,6 @@ exports.getOfferByLocator = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found with this record locator' });
     }
 
-    // Allow access to ticket creator, assigned agent, or admins
     const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
     const isCreator = offer.createdBy._id.toString() === req.user._id.toString();
 
@@ -433,6 +839,78 @@ exports.getOfferByLocator = async (req, res) => {
     }
 
     res.json({ success: true, data: offer });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get offer history
+// @route   GET /api/offers/:id/history
+// @access  Private
+exports.getOfferHistory = async (req, res) => {
+  try {
+    const history = await OfferHistory.find({ offerId: req.params.id })
+      .populate('performedBy', 'firstName lastName email role')
+      .populate('versionRef', 'version statusAtSnapshot changeSummary')
+      .sort({ timestamp: -1 });
+    res.json({ success: true, data: history });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// Shared authorization check for an offer's version/history access.
+async function assertOfferAccess(offer, req) {
+  const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+  const isOwner = offer.createdBy._id.toString() === req.user._id.toString();
+  if (!isAdmin && !isOwner) {
+    return false;
+  }
+  return true;
+}
+
+// @desc    List all previously sent/revised versions of an offer
+// @route   GET /api/offers/:id/versions
+// @access  Private
+exports.getOfferVersions = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id).populate('lead');
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    if (!await assertOfferAccess(offer, req)) {
+      return res.status(403).json({ message: 'Not authorized to view this offer\'s versions' });
+    }
+
+    const versions = await OfferVersion.find({ offerId: offer._id })
+      .populate('emailRef', 'subject toEmail status sentAt htmlBody')
+      .populate('createdBy', 'firstName lastName')
+      .sort({ version: -1 });
+
+    res.json({ success: true, data: versions, currentVersion: offer.version });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get a single version snapshot (with the exact sent content)
+// @route   GET /api/offers/:id/versions/:vid
+// @access  Private
+exports.getOfferVersion = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id).populate('lead');
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    if (!await assertOfferAccess(offer, req)) {
+      return res.status(403).json({ message: 'Not authorized to view this offer\'s versions' });
+    }
+
+    const version = await OfferVersion.findOne({ offerId: offer._id, version: Number(req.params.vid) })
+      .populate('emailRef', 'subject toEmail fromEmail status sentAt htmlBody body')
+      .populate('createdBy', 'firstName lastName');
+
+    if (!version) return res.status(404).json({ message: 'Version not found' });
+
+    res.json({ success: true, data: version });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }

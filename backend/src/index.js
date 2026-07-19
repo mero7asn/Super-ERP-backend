@@ -44,6 +44,7 @@ const essRoutes = require('./routes/essRoutes');
 const gatewayRoutes = require('./routes/gatewayRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -59,6 +60,7 @@ app.use('/api/ess', essRoutes);
 app.use('/api/gateway', gatewayRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/public/pay', paymentRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Base route
 app.get('/', (req, res) => {
