@@ -29,7 +29,7 @@ const offerSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Draft', 'Sent', 'Viewed', 'Accepted', 'Rejected', 'Expired', 'Completed', 'Canceled', 'Refunded'],
+    enum: ['Draft', 'Sent', 'Viewed', 'Accepted', 'Rejected', 'Expired', 'Completed', 'Canceled', 'Refunded', 'Paid'],
     default: 'Draft'
   },
   recordLocator: {
@@ -66,6 +66,29 @@ const offerSchema = new mongoose.Schema({
   notes: {
     type: String,
     default: ''
+  },
+
+  // ── Payment / Booking fields ─────────────────────────────────────
+  // Unique, non-guessable token used in the public payment link (/pay/:token).
+  paymentToken: {
+    type: String,
+    default: null,
+    unique: true,
+    sparse: true
+  },
+  // Reference created once payment is confirmed (synced from the Booking).
+  bookingRef: {
+    type: String,
+    default: null
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['Card', 'BankTransfer', 'Fawry', 'PayMob', 'InstaPay', 'Cash', null],
+    default: null
+  },
+  paidAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

@@ -1,6 +1,8 @@
 const Offer = require('../models/Offer');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
+const crypto = require('crypto');
+const { buildPaymentLink } = require('./paymentController');
 
 // @desc    Get offers for a lead
 // @route   GET /api/offers/lead/:leadId
@@ -173,6 +175,20 @@ exports.sendOffer = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to send this offer' });
     }
 
+    // Ensure the offer has a payment token so a public payment link can be
+    // shared with the customer. Generated once and reused for all resends.
+    if (!offer.paymentToken) {
+      let token;
+      let exists = true;
+      while (exists) {
+        token = crypto.randomBytes(16).toString('hex');
+        exists = await Offer.exists({ paymentToken: token });
+      }
+      offer.paymentToken = token;
+    }
+
+    const payLink = buildPaymentLink(offer.paymentToken);
+
     // Build message content
     const emailSubject = `New Offer: ${offer.title}`;
     const emailBody = `
@@ -186,11 +202,14 @@ ${offer.description}
 Price: $${offer.price.toLocaleString()}
 Valid Until: ${new Date(offer.validUntil).toLocaleDateString()}
 
+Complete your payment here:
+${payLink}
+
 Best regards,
 ${offer.createdBy.firstName} ${offer.createdBy.lastName}
     `.trim();
 
-    const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Reply for details.`;
+    const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Pay here: ${payLink}`;
 
     // Send via selected method(s)
     if (method === 'Email' || method === 'Both') {
