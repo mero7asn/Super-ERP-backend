@@ -130,6 +130,27 @@ const runStartupTasks = () => {
       }
     });
     console.log('[Cron] Monthly schedule reminder job registered (25th of each month, 9:00 AM)');
+
+    // Hourly offer expiry: mark Sent/Viewed offers past their validUntil as Expired
+    cron.schedule('0 * * * *', async () => {
+      try {
+        const Offer = require('./models/Offer');
+        const now = new Date();
+        const result = await Offer.updateMany(
+          {
+            status: { $in: ['Sent', 'Viewed'] },
+            validUntil: { $lt: now }
+          },
+          { $set: { status: 'Expired' } }
+        );
+        if (result.modifiedCount > 0) {
+          console.log(`[Cron] Expired ${result.modifiedCount} overdue offer(s)`);
+        }
+      } catch (err) {
+        console.error('[Cron] Offer expiry error:', err.message);
+      }
+    });
+    console.log('[Cron] Hourly offer expiry job registered');
   } catch (err) {
     console.error('[Startup] Error running startup tasks:', err.message);
   }

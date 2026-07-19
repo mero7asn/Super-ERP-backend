@@ -16,8 +16,8 @@ const employeeLoanSchema = new mongoose.Schema({
   reason:     { type: String, default: '' },
   status: {
     type: String,
-    enum: ['Active', 'Settled', 'Defaulted', 'Paused'],
-    default: 'Active'
+    enum: ['Pending', 'Active', 'Settled', 'Defaulted', 'Paused', 'Rejected'],
+    default: 'Pending'
   },
   // Payment history
   installments: [{

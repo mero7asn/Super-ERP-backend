@@ -182,18 +182,22 @@ exports.updateOffer = async (req, res) => {
 
     const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
+    const canUpdateBookingStatus = ['Customer Support Agent', 'Customer Support Manager', 'CRM Developer', 'CRM Consultant'].includes(req.user.role);
 
-    if (!isAdmin && !isOwner) {
+    if (!isAdmin && !isOwner && !canUpdateBookingStatus) {
       return res.status(403).json({ message: 'Not authorized to update this offer' });
     }
 
     if (offer.status !== 'Draft') {
-      if (!isAdmin) {
+      if (!isAdmin && !isOwner && !canUpdateBookingStatus) {
         return res.status(403).json({
           message: 'This offer has already been sent. Use "Revise" to create a new editable version.'
         });
       }
-      const allowedUpdates = { status: req.body.status, notes: req.body.notes };
+
+      const allowedUpdates = canUpdateBookingStatus && !isAdmin
+        ? { status: req.body.status }
+        : { status: req.body.status, notes: req.body.notes };
       Object.keys(allowedUpdates).forEach(k => allowedUpdates[k] === undefined && delete allowedUpdates[k]);
       const oldStatus = offer.status;
       const updated = await Offer.findByIdAndUpdate(req.params.id, allowedUpdates, { new: true, runValidators: true })
@@ -336,57 +340,81 @@ exports.sendOffer = async (req, res) => {
   try {
     const { method } = req.body;
 
-    const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
+    if (!method || !['Email', 'SMS', 'Both'].includes(method)) {
+      return res.status(400).json({ message: 'Invalid send method. Use Email, SMS, or Both.' });
+    }
+
+    const offer = await Offer.findById(req.params.id)
+      .populate('lead')
+      .populate('createdBy', 'firstName lastName');
+
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
+    if (!offer.lead) {
+      return res.status(400).json({ message: 'This offer is not linked to a valid lead. Cannot send.' });
+    }
+
     const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
-    const isOwner = offer.createdBy._id.toString() === req.user._id.toString();
+    const isOwner = offer.createdBy && offer.createdBy._id
+      ? offer.createdBy._id.toString() === req.user._id.toString()
+      : false;
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ message: 'Not authorized to send this offer' });
     }
 
-    const emailSubject = `New Offer: ${offer.title}`;
+    const title = offer.title || 'Offer';
+    const description = offer.description || '';
+    const price = Number(offer.price) || 0;
+    const validUntil = offer.validUntil ? new Date(offer.validUntil) : new Date();
+    const agentName = offer.createdBy
+      ? `${offer.createdBy.firstName || ''} ${offer.createdBy.lastName || ''}`.trim() || 'Agent'
+      : 'Agent';
+    const leadName = offer.lead.name || 'Customer';
 
-    // Ensure a payment token exists so the customer always gets a pay link.
+    const emailSubject = `New Offer: ${title}`;
+
     if (!offer.paymentToken) {
       offer.paymentToken = require('crypto').randomBytes(16).toString('hex');
       await offer.save();
     }
     const paymentLink = buildPaymentLink(offer.paymentToken);
 
-    const textBody = `
-Hello ${offer.lead.name},
+    const textBody = [
+      `Hello ${leadName},`,
+      '',
+      'We have a special offer for you!',
+      '',
+      title,
+      description,
+      '',
+      `Price: $${price.toLocaleString()}`,
+      `Valid Until: ${validUntil.toLocaleDateString()}`,
+      '',
+      paymentLink ? `Pay now: ${paymentLink}` : '',
+      '',
+      `Best regards,`,
+      agentName,
+    ].filter(Boolean).join('\n').trim();
 
-We have a special offer for you!
-
-${offer.title}
-${offer.description}
-
-Price: $${offer.price.toLocaleString()}
-Valid Until: ${new Date(offer.validUntil).toLocaleDateString()}
-
-${paymentLink ? `Pay now: ${paymentLink}` : ''}
-
-Best regards,
-${offer.createdBy.firstName} ${offer.createdBy.lastName}
-    `.trim();
-
-    const imagesHtml = offer.images && offer.images.length > 0
+    const imagesHtml = (offer.images && offer.images.length > 0)
       ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0;">
            <tr><td>
              <p style="margin:0 0 12px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Offer Photos</p>
              <table role="presentation" cellspacing="8" cellpadding="0" border="0">
                <tr>
                  ${offer.images.map(img => {
-                     const imgSrc = img.url.startsWith('http') ? img.url : `http://localhost:5000${img.url}`;
+                     const rawUrl = img && img.url ? String(img.url).trim() : '';
+                     if (!rawUrl) return '';
+                     const imgSrc = rawUrl.startsWith('http') ? rawUrl : `http://localhost:5000${rawUrl}`;
+                     const safeCaption = (img && img.caption) ? img.caption.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
                      return `
                    <td style="vertical-align:top;text-align:center;">
-                     <img src="${imgSrc}" alt="${img.caption || 'Offer image'}"
+                     <img src="${imgSrc}" alt="${safeCaption || 'Offer image'}"
                        style="width:160px;height:160px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;display:block;" />
-                     ${img.caption ? `<p style="margin:6px 0 0;font-size:11px;color:#94a3b8;">${img.caption}</p>` : ''}
-                   </td>`
-                 }).join('')}
+                     ${safeCaption ? `<p style="margin:6px 0 0;font-size:11px;color:#94a3b8;">${safeCaption}</p>` : ''}
+                   </td>`;
+                 }).filter(Boolean).join('')}
                </tr>
              </table>
            </td></tr>
@@ -402,16 +430,16 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
     <tr><td align="center" style="padding:24px 0;">
       <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;">
         <tr><td style="background-color:#2563eb;padding:24px 32px;color:#ffffff;">
-          <h1 style="margin:0;font-size:20px;font-weight:600;">${offer.title}</h1>
+          <h1 style="margin:0;font-size:20px;font-weight:600;">${title}</h1>
         </td></tr>
         <tr><td style="padding:32px;">
-          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Hello ${offer.lead.name},</p>
-          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">${offer.description}</p>
+          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Hello ${leadName},</p>
+          <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">${description}</p>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f8fafc;border-radius:6px;margin:16px 0;">
             <tr><td style="padding:16px 24px;">
               <p style="margin:0 0 8px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Price</p>
-              <p style="margin:0;font-size:22px;font-weight:700;color:#2563eb;">$${offer.price.toLocaleString()}</p>
-              <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Valid until <strong style="color:#334155;">${new Date(offer.validUntil).toLocaleDateString()}</strong></p>
+              <p style="margin:0;font-size:22px;font-weight:700;color:#2563eb;">$${price.toLocaleString()}</p>
+              <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Valid until <strong style="color:#334155;">${validUntil.toLocaleDateString()}</strong></p>
             </td></tr>
           </table>
           ${imagesHtml}
@@ -419,10 +447,10 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
           ${paymentLink ? `
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 0;">
             <tr><td>
-              <a href="${paymentLink}" target="_blank" style="display:inline-block;background-color:#16a34a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:8px;">Pay Now — $${offer.price.toLocaleString()}</a>
+              <a href="${paymentLink}" target="_blank" style="display:inline-block;background-color:#16a34a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:8px;">Pay Now — $${price.toLocaleString()}</a>
             </td></tr>
           </table>` : ''}
-          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${offer.createdBy.firstName} ${offer.createdBy.lastName}</strong></p>
+          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${agentName}</strong></p>
         </td></tr>
         <tr><td style="padding:16px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
           <p style="margin:0;font-size:11px;color:#94a3b8;">Sent via Super CRM • ${new Date().toLocaleString()}</p>
@@ -434,7 +462,7 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
 </html>
     `.trim();
 
-    const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Reply for details.`;
+    const smsMessage = `${title} - $${price.toLocaleString()}. Valid until ${validUntil.toLocaleDateString()}. Reply for details.`;
 
     let globalConfig = null;
     if (method === 'Email' || method === 'Both') {
@@ -475,20 +503,21 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
           emailDoc.providerError = emailErr.message;
           await emailDoc.save();
         }
-        
-        // Return error immediately so offer is not marked as sent
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Failed to send email. Please check your SMTP settings in your Profile.', 
-          error: emailErr.message 
+
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to send email. Please check your SMTP settings in your Profile.',
+          error: emailErr.message
         });
       }
     }
 
     if (method === 'SMS' || method === 'Both') {
-      if (offer.lead.phone) {
-        console.log(`Sending SMS to ${offer.lead.phone}:`);
-        console.log(`Message: ${smsMessage}`);
+      if (offer.lead?.phone) {
+        console.log(`[SMS] To: ${offer.lead.phone}`);
+        console.log(`[SMS] Message: ${smsMessage}`);
+      } else {
+        console.warn(`[SMS] Skipped — no phone number for lead ${offer.lead?._id || offer.lead}`);
       }
     }
 
@@ -525,6 +554,13 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
 
     res.json({ success: true, message: `Offer sent via ${method}`, data: offer });
   } catch (error) {
+    console.error('[OfferSend] Failed:', {
+      offerId: req.params.id,
+      method: req.body?.method,
+      userId: req.user?._id,
+      error: error.message,
+      stack: error.stack,
+    });
     res.status(500).json({ message: 'Failed to send offer', error: error.message });
   }
 };

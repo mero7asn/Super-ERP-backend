@@ -9,21 +9,8 @@ const govDocFilter = (req, file, cb) => {
   else cb(new Error('Only PDF, image, or Word document files are allowed'));
 };
 
-const govDocStorage = multer.diskStorage({
-  destination: (req, file, cb) => { cb(null, 'uploads/gov-docs/'); },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `govdoc-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-  }
-});
-
-const signedContractStorage = multer.diskStorage({
-  destination: (req, file, cb) => { cb(null, 'uploads/gov-docs/'); },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `signed-contract-${Date.now()}${ext}`);
-  }
-});
+const govDocStorage = multer.memoryStorage();
+const signedContractStorage = multer.memoryStorage();
 
 const uploadGovDoc = multer({ storage: govDocStorage, fileFilter: govDocFilter, limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadSignedContract = multer({ storage: signedContractStorage, fileFilter: govDocFilter, limits: { fileSize: 10 * 1024 * 1024 } });

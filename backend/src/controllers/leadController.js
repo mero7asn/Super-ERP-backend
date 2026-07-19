@@ -241,3 +241,37 @@ exports.getAssignableAgents = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+
+// @desc    Get a single lead by ID
+// @route   GET /api/leads/:id
+// @access  Private
+exports.getLeadById = async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id)
+      .populate({ path: 'assignedTo', select: 'firstName lastName email role supervisor' })
+      .populate('campaign', 'name platform');
+
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    // Authorization checks
+    if (ADMIN_ROLES.includes(req.user.role) || ['Executive User', 'Business Analyst'].includes(req.user.role)) {
+      // Allowed
+    } else if (MANAGER_ROLES.includes(req.user.role)) {
+      const teamAgents = await User.find({ supervisor: req.user._id, role: 'Sales Agent' }).select('_id');
+      const agentIds = teamAgents.map(a => a._id.toString());
+      if (lead.assignedTo && !agentIds.includes(lead.assignedTo._id.toString())) {
+        return res.status(403).json({ message: 'Not authorized to view this lead' });
+      }
+    } else if (req.user.role === 'Sales Agent') {
+      if (lead.assignedTo?._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: 'Not authorized to view this lead' });
+      }
+    } else {
+      return res.status(403).json({ message: 'Not authorized to view this lead' });
+    }
+
+    res.status(200).json({ success: true, data: lead });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

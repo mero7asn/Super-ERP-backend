@@ -61,9 +61,39 @@ const PersonalPage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [dailyShift, setDailyShift] = useState('Day Shift (09:00 - 17:00)');
   const [dailyIsOff, setDailyIsOff] = useState(false);
+  const [changeLogs, setChangeLogs] = useState([]);
+
+  // Enhanced weekly schedule state
+  const [weekDayConfig, setWeekDayConfig] = useState([
+    { day: 'Monday', shift: 'Day Shift (09:00 - 17:00)', isOff: false },
+    { day: 'Tuesday', shift: 'Day Shift (09:00 - 17:00)', isOff: false },
+    { day: 'Wednesday', shift: 'Day Shift (09:00 - 17:00)', isOff: false },
+    { day: 'Thursday', shift: 'Day Shift (09:00 - 17:00)', isOff: false },
+    { day: 'Friday', shift: 'Day Shift (09:00 - 17:00)', isOff: false },
+    { day: 'Saturday', shift: 'Day Shift (09:00 - 17:00)', isOff: true },
+    { day: 'Sunday', shift: 'Day Shift (09:00 - 17:00)', isOff: true },
+  ]);
+  const [copyingSchedule, setCopyingSchedule] = useState(false);
 
   // Active day detail view for staggered timing configuration
   const [activeExpandedDay, setActiveExpandedDay] = useState(null);
+
+  // Day editor state for granular control
+  const [editingDay, setEditingDay] = useState(null);
+  const [showDayEditor, setShowDayEditor] = useState(false);
+  const [dayEditorTab, setDayEditorTab] = useState('quick');
+  const [copyBuffer, setCopyBuffer] = useState(null);
+  const [applyRange, setApplyRange] = useState({ from: '', to: '' });
+  const [editingDayData, setEditingDayData] = useState({
+    shift: 'Day Shift (09:00 - 17:00)',
+    isOffDay: false,
+    customStartTime: '',
+    customEndTime: '',
+    liveTarget: 480,
+    breakTarget: 60,
+    trainingTarget: 0,
+    coachingTarget: 0
+  });
 
   // Default AUX Target fields for monthly initial configuration
   const [defaultLiveTarget, setDefaultLiveTarget] = useState(480);
@@ -237,9 +267,30 @@ const PersonalPage = () => {
         const dayData = (sched.dailyOverrides || {})[selectedDate] || { shift: sched.defaultShift, isOffDay: false };
         setDailyShift(dayData.shift || sched.defaultShift);
         setDailyIsOff(dayData.isOffDay || false);
+
+        // Initialize enhanced weekly day config
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const newWeekDayConfig = days.map(d => ({
+          day: d,
+          shift: sched.defaultShift || 'Day Shift (09:00 - 17:00)',
+          isOff: (sched.defaultOffDays || []).includes(d)
+        }));
+        setWeekDayConfig(newWeekDayConfig);
       }
     } catch (err) {
       console.error('Failed to load detailed schedule', err);
+    }
+  };
+
+  const fetchChangeLogs = async () => {
+    if (!selectedEmployeeId) return;
+    try {
+      const { data } = await API.get(`/hrm/schedules/change-logs?employeeId=${selectedEmployeeId}`);
+      if (data.success) {
+        setChangeLogs(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load schedule change logs', err);
     }
   };
 
@@ -247,6 +298,7 @@ const PersonalPage = () => {
     if (selectedEmployeeId) {
       fetchContract();
       fetchDetailedSchedule();
+      fetchChangeLogs();
       fetchLeaveBalance(selectedEmployeeId);
       const emp = employees.find(e => e._id === selectedEmployeeId);
       if (emp) {
@@ -276,6 +328,15 @@ const PersonalPage = () => {
       setDailyIsOff(dayData.isOffDay || false);
     }
   }, [selectedDate, detailedSchedule]);
+
+  useEffect(() => {
+    const newOffDays = weekDayConfig.filter(d => d.isOff).map(d => d.day);
+    const workingShifts = weekDayConfig.filter(d => !d.isOff).map(d => d.shift);
+    if (workingShifts.length > 0) {
+      setShift(workingShifts[0]);
+    }
+    setOffDays(newOffDays);
+  }, [weekDayConfig]);
 
   const handleSaveContract = async (e) => {
     e.preventDefault();
@@ -385,6 +446,241 @@ const PersonalPage = () => {
       fetchEmployees();
     } catch (err) {
       setStatusMsg({ type: 'error', text: 'Failed to update schedule.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopyToNextMonth = async () => {
+    setCopyingSchedule(true);
+    try {
+      const { data } = await API.post('/hrm/schedules/copy-next-month', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth
+      });
+      setStatusMsg({ type: 'success', text: data.message || 'Schedule copied to next month successfully.' });
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: err.response?.data?.message || 'Failed to copy schedule.' });
+    } finally {
+      setCopyingSchedule(false);
+    }
+  };
+
+  const handleSaveWeeklyPattern = async () => {
+    setSaving(true);
+    try {
+      const newOffDays = weekDayConfig.filter(d => d.isOff).map(d => d.day);
+      const workingShifts = weekDayConfig.filter(d => !d.isOff).map(d => d.shift);
+      const primaryShift = workingShifts.length > 0 ? workingShifts[0] : 'Day Shift (09:00 - 17:00)';
+      
+      setOffDays(newOffDays);
+      setShift(primaryShift);
+      
+      await API.put('/hrm/schedules/detailed', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth,
+        defaultShift: primaryShift,
+        defaultOffDays: newOffDays
+      });
+      setStatusMsg({ type: 'success', text: 'Weekly pattern updated successfully.' });
+      fetchDetailedSchedule();
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Failed to update weekly pattern.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openDayEditor = (dayInfo) => {
+    const dateStr = `${selectedMonth}-${String(dayInfo.dayNum).padStart(2, '0')}`;
+    const override = (detailedSchedule?.dailyOverrides || {})[dateStr] || {};
+    setEditingDay(dayInfo);
+    setEditingDayData({
+      shift: override.shift || detailedSchedule?.defaultShift || 'Day Shift (09:00 - 17:00)',
+      isOffDay: override.isOffDay || false,
+      customStartTime: override.customStartTime || '',
+      customEndTime: override.customEndTime || '',
+      liveTarget: override.liveTarget ?? detailedSchedule?.defaultLiveTarget ?? 480,
+      breakTarget: override.breakTarget ?? detailedSchedule?.defaultBreakTarget ?? 60,
+      trainingTarget: override.trainingTarget ?? detailedSchedule?.defaultTrainingTarget ?? 0,
+      coachingTarget: override.coachingTarget ?? detailedSchedule?.defaultCoachingTarget ?? 0
+    });
+    setShowDayEditor(true);
+    setDayEditorTab('quick');
+    setApplyRange({ from: dateStr, to: dateStr });
+  };
+
+  const closeDayEditor = () => {
+    setShowDayEditor(false);
+    setEditingDay(null);
+    setCopyBuffer(null);
+  };
+
+  const saveDayEditor = async () => {
+    if (!editingDay || !detailedSchedule) return;
+    setSaving(true);
+    try {
+      const dateStr = `${selectedMonth}-${String(editingDay.dayNum).padStart(2, '0')}`;
+      const updatedOverrides = {
+        ...(detailedSchedule?.dailyOverrides || {}),
+        [dateStr]: {
+          shift: editingDayData.shift,
+          isOffDay: editingDayData.isOffDay,
+          customStartTime: editingDayData.customStartTime || undefined,
+          customEndTime: editingDayData.customEndTime || undefined,
+          liveTarget: editingDayData.liveTarget,
+          breakTarget: editingDayData.breakTarget,
+          trainingTarget: editingDayData.trainingTarget,
+          coachingTarget: editingDayData.coachingTarget
+        }
+      };
+      await API.put('/hrm/schedules/detailed', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth,
+        dailyOverrides: updatedOverrides
+      });
+      setStatusMsg({ type: 'success', text: `Day schedule for ${dateStr} saved.` });
+      fetchDetailedSchedule();
+      closeDayEditor();
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Failed to save day schedule.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyCurrentDay = () => {
+    if (!editingDay) return;
+    setCopyBuffer({ ...editingDayData, dateStr: `${selectedMonth}-${String(editingDay.dayNum).padStart(2, '0')}` });
+    setStatusMsg({ type: 'success', text: 'Day settings copied to buffer.' });
+  };
+
+  const pasteDaySettings = async (targetDateStr) => {
+    if (!copyBuffer || !detailedSchedule) return;
+    setSaving(true);
+    try {
+      const updatedOverrides = {
+        ...(detailedSchedule?.dailyOverrides || {}),
+        [targetDateStr]: {
+          shift: copyBuffer.shift,
+          isOffDay: copyBuffer.isOffDay,
+          customStartTime: copyBuffer.customStartTime || undefined,
+          customEndTime: copyBuffer.customEndTime || undefined,
+          liveTarget: copyBuffer.liveTarget,
+          breakTarget: copyBuffer.breakTarget,
+          trainingTarget: copyBuffer.trainingTarget,
+          coachingTarget: copyBuffer.coachingTarget
+        }
+      };
+      await API.put('/hrm/schedules/detailed', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth,
+        dailyOverrides: updatedOverrides
+      });
+      setStatusMsg({ type: 'success', text: `Settings pasted to ${targetDateStr}.` });
+      fetchDetailedSchedule();
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Failed to paste settings.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyDayToRange = async () => {
+    if (!editingDay || !detailedSchedule || !applyRange.from || !applyRange.to) return;
+    setSaving(true);
+    try {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const fromDate = new Date(applyRange.from);
+      const toDate = new Date(applyRange.to);
+      const updatedOverrides = { ...(detailedSchedule?.dailyOverrides || {}) };
+      
+      for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+        if (d.getMonth() + 1 === m && d.getFullYear() === y) {
+          const dateStr = d.toISOString().split('T')[0];
+          updatedOverrides[dateStr] = {
+            shift: editingDayData.shift,
+            isOffDay: editingDayData.isOffDay,
+            customStartTime: editingDayData.customStartTime || undefined,
+            customEndTime: editingDayData.customEndTime || undefined,
+            liveTarget: editingDayData.liveTarget,
+            breakTarget: editingDayData.breakTarget,
+            trainingTarget: editingDayData.trainingTarget,
+            coachingTarget: editingDayData.coachingTarget
+          };
+        }
+      }
+      
+      await API.put('/hrm/schedules/detailed', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth,
+        dailyOverrides: updatedOverrides
+      });
+      setStatusMsg({ type: 'success', text: 'Settings applied to selected range.' });
+      fetchDetailedSchedule();
+      closeDayEditor();
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Failed to apply range.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetDayToDefault = async () => {
+    if (!editingDay || !detailedSchedule) return;
+    setSaving(true);
+    try {
+      const dateStr = `${selectedMonth}-${String(editingDay.dayNum).padStart(2, '0')}`;
+      const newOverrides = { ...(detailedSchedule?.dailyOverrides || {}) };
+      delete newOverrides[dateStr];
+      
+      await API.put('/hrm/schedules/detailed', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth,
+        dailyOverrides: newOverrides
+      });
+      setStatusMsg({ type: 'success', text: 'Day reset to default schedule.' });
+      fetchDetailedSchedule();
+      closeDayEditor();
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Failed to reset day.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyWeeklyTemplateToMonth = async () => {
+    if (!detailedSchedule) return;
+    setSaving(true);
+    try {
+      const newOverrides = { ...(detailedSchedule?.dailyOverrides || {}) };
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateObj = new Date(y, m - 1, d);
+        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        const dayConfig = weekDayConfig.find(w => w.day === dayName);
+        if (dayConfig) {
+          const dateStr = `${selectedMonth}-${String(d).padStart(2, '0')}`;
+          const existing = newOverrides[dateStr] || {};
+          newOverrides[dateStr] = {
+            ...existing,
+            shift: dayConfig.shift,
+            isOffDay: dayConfig.isOff
+          };
+        }
+      }
+      
+      await API.put('/hrm/schedules/detailed', {
+        employeeId: selectedEmployeeId,
+        month: selectedMonth,
+        dailyOverrides: newOverrides
+      });
+      setStatusMsg({ type: 'success', text: 'Weekly pattern applied to entire month.' });
+      fetchDetailedSchedule();
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Failed to apply weekly pattern.' });
     } finally {
       setSaving(false);
     }
@@ -876,8 +1172,8 @@ const PersonalPage = () => {
                     </div>
                   )}
 
-                  {/* Shift Configurator (HR/Admin only) */}
-                  {isHR && (
+                  {/* Shift Configurator (HR/Admin or Self) */}
+                  {(isHR || selectedEmployeeId === user?._id) && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                       {/* Month Selector Card */}
                       <div className="card" style={{ padding: '16px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -885,7 +1181,7 @@ const PersonalPage = () => {
                           <h3 style={{ margin: 0, fontSize: 15 }}>Select Schedule Target Period</h3>
                           <p style={{ margin: '4px 0 0 0', fontSize: 12, color: 'var(--text-muted)' }}>Schedules must be initialized monthly, and can be fine-tuned weekly or daily.</p>
                         </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           <label className="form-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>Target Month</label>
                           <input 
                             type="month" 
@@ -894,6 +1190,15 @@ const PersonalPage = () => {
                             onChange={(e) => setSelectedMonth(e.target.value)} 
                             style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }}
                           />
+                          <button 
+                            type="button"
+                            className="btn btn-secondary btn-sm" 
+                            onClick={handleCopyToNextMonth}
+                            disabled={copyingSchedule || !detailedSchedule}
+                            style={{ fontSize: 11 }}
+                          >
+                            {copyingSchedule ? 'Copying...' : '📋 Copy to Next Month'}
+                          </button>
                         </div>
                       </div>
 
@@ -915,32 +1220,6 @@ const PersonalPage = () => {
                               <option value="Night Shift (17:00 - 01:00)">Night Shift (17:00 - 01:00)</option>
                               <option value="Overnight Shift (23:00 - 07:00)">Overnight Shift (23:00 - 07:00)</option>
                             </select>
-                          </div>
-
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label className="form-label">Default Monthly Off-Days</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                              {['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'].map((day) => {
-                                const active = offDays.includes(day);
-                                return (
-                                  <button
-                                    type="button"
-                                    key={day}
-                                    onClick={() => {
-                                      setOffDays(prev =>
-                                        prev.includes(day)
-                                          ? prev.filter(d => d !== day)
-                                          : [...prev, day]
-                                      );
-                                    }}
-                                    className={`btn ${active ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-                                    style={{ padding: '4px 8px', fontSize: 11 }}
-                                  >
-                                    {day}
-                                  </button>
-                                );
-                              })}
-                            </div>
                           </div>
 
                           <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 16 }}>
@@ -970,70 +1249,68 @@ const PersonalPage = () => {
                         </form>
                       </div>
 
-                      {/* 2. Weekly overrides */}
+                      {/* 2. Enhanced Weekly Schedule Pattern */}
                       <div className="card">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <div>
-                            <h3 style={{ margin: 0, fontSize: 15 }}>2. Weekly Schedule Overrides</h3>
-                            <p style={{ margin: '2px 0 0 0', fontSize: 11, color: 'var(--text-muted)' }}>Fine-tune or override schedule for a specific week.</p>
+                            <h3 style={{ margin: 0, fontSize: 15 }}>2. Weekly Schedule Pattern</h3>
+                            <p style={{ margin: '2px 0 0 0', fontSize: 11, color: 'var(--text-muted)' }}>Click a day to toggle Off/Working. Use the dropdown to set the shift for working days. This becomes your default weekly schedule.</p>
                           </div>
-                          <select 
-                            className="form-input" 
-                            value={selectedWeek} 
-                            onChange={(e) => setSelectedWeek(e.target.value)}
-                            style={{ width: 'auto', padding: '4px 8px', fontSize: 12, height: 'auto' }}
-                          >
-                            <option value="Week 1">Week 1</option>
-                            <option value="Week 2">Week 2</option>
-                            <option value="Week 3">Week 3</option>
-                            <option value="Week 4">Week 4</option>
-                            <option value="Week 5">Week 5</option>
-                          </select>
                         </div>
 
-                        <form onSubmit={handleSaveWeeklyOverride} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label className="form-label">Weekly Override Shift</label>
-                            <select className="form-input" value={weekShift} onChange={(e) => setWeekShift(e.target.value)}>
-                              <option value="Day Shift (09:00 - 17:00)">Day Shift (09:00 - 17:00)</option>
-                              <option value="Afternoon Shift (15:00 - 23:00)">Afternoon Shift (15:00 - 23:00)</option>
-                              <option value="Night Shift (17:00 - 01:00)">Night Shift (17:00 - 01:00)</option>
-                              <option value="Overnight Shift (23:00 - 07:00)">Overnight Shift (23:00 - 07:00)</option>
-                            </select>
-                          </div>
-
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label className="form-label">Weekly Override Off-Days</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                              {['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'].map((day) => {
-                                const active = weekOffDays.includes(day);
-                                return (
-                                  <button
-                                    type="button"
-                                    key={day}
-                                    onClick={() => {
-                                      setWeekOffDays(prev =>
-                                        prev.includes(day)
-                                          ? prev.filter(d => d !== day)
-                                          : [...prev, day]
-                                      );
-                                    }}
-                                    className={`btn ${active ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-                                    style={{ padding: '4px 8px', fontSize: 11 }}
-                                  >
-                                    {day}
-                                  </button>
-                                );
-                              })}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10, marginBottom: 16 }}>
+                          {weekDayConfig.map((day, idx) => (
+                            <div 
+                              key={day.day} 
+                              onClick={() => {
+                                const newConfig = [...weekDayConfig];
+                                newConfig[idx].isOff = !newConfig[idx].isOff;
+                                setWeekDayConfig(newConfig);
+                              }}
+                              style={{
+                                background: day.isOff ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)',
+                                border: day.isOff ? '1px dashed rgba(239,68,68,0.3)' : '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                padding: 10,
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                opacity: day.isOff ? 0.8 : 1
+                              }}
+                            >
+                              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: day.isOff ? '#EF4444' : 'var(--text-primary)' }}>
+                                {day.day.substring(0, 3)}
+                              </div>
+                              <div style={{ fontSize: 10, color: day.isOff ? '#FCA5A5' : '#93C5FD', fontWeight: 600, marginBottom: day.isOff ? 0 : 8 }}>
+                                {day.isOff ? 'Off Day' : day.shift.split(' ')[0]}
+                              </div>
+                              {!day.isOff && (
+                                <select 
+                                  className="form-input" 
+                                  value={day.shift}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    const newConfig = [...weekDayConfig];
+                                    newConfig[idx].shift = e.target.value;
+                                    setWeekDayConfig(newConfig);
+                                  }}
+                                  style={{ fontSize: 10, padding: '3px 6px', height: 'auto', width: '100%' }}
+                                >
+                                  <option value="Day Shift (09:00 - 17:00)">Day</option>
+                                  <option value="Afternoon Shift (15:00 - 23:00)">Afternoon</option>
+                                  <option value="Night Shift (17:00 - 01:00)">Night</option>
+                                  <option value="Overnight Shift (23:00 - 07:00)">Overnight</option>
+                                </select>
+                              )}
                             </div>
-                          </div>
+                          ))}
+                        </div>
 
-                          <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-                              Save Weekly Override ({selectedWeek})
-                            </button>
-                          </div>
-                        </form>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={handleSaveWeeklyPattern} disabled={saving}>
+                            {saving ? 'Saving...' : 'Save Weekly Pattern'}
+                          </button>
+                        </div>
                       </div>
 
                       {/* 3. Daily overrides */}
@@ -1132,7 +1409,7 @@ const PersonalPage = () => {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         {contract?.signedContractFile ? (
-                          <a href={`http://localhost:5000${contract.signedContractFile}`} target="_blank" rel="noopener noreferrer"
+                          <a href={contract.signedContractFile.startsWith('http') ? contract.signedContractFile : `http://localhost:5000${contract.signedContractFile}`} target="_blank" rel="noopener noreferrer"
                             style={{ fontSize: 12, color: 'var(--accent-secondary)', textDecoration: 'none', padding: '5px 12px', border: '1px solid var(--accent-secondary)33', borderRadius: 6, background: 'rgba(99,102,241,0.06)' }}>
                             View Document
                           </a>
@@ -1287,6 +1564,47 @@ const PersonalPage = () => {
                     })()}
                   </div>
 
+                  {/* Schedule Change Logs */}
+                  {isHR && changeLogs.length > 0 && (
+                    <div className="card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <h3 style={{ margin: 0, fontSize: 15 }}>📋 Schedule Change Audit Log</h3>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={fetchChangeLogs} style={{ fontSize: 11 }}>
+                          🔄 Refresh
+                        </button>
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                        All schedule changes for this employee, including changes made by RTM, HR, or the employee themselves.
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {changeLogs.slice(0, 20).map((log, i) => {
+                          const sourceColor = log.changeSource === 'RTM' ? '#F97316' : log.changeSource === 'HR' ? '#3B82F6' : '#10B981';
+                          const sourceLabel = log.changeSource === 'RTM' ? '🟠 RTM' : log.changeSource === 'HR' ? '🔵 HR' : '🟢 Personal';
+                          return (
+                            <div key={log._id || i} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                              <span style={{ fontSize: 11, background: `${sourceColor}18`, color: sourceColor, border: `1px solid ${sourceColor}44`, borderRadius: 4, padding: '2px 8px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                {sourceLabel}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 200 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                  {log.changedBy ? `${log.changedBy.firstName} ${log.changedBy.lastName}` : 'Unknown'}
+                                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}> · {log.changedBy?.role}</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  Changed <strong style={{ color: 'var(--text-primary)' }}>{log.field}</strong> for {log.month}
+                                  {log.note ? ` · "${log.note}"` : ''}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                {new Date(log.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Salary History */}
                   {contract?.salaryHistory?.length > 0 && (
                     <div className="card">
@@ -1351,7 +1669,7 @@ const PersonalPage = () => {
                                   <div style={{ fontSize: 11, marginTop: 3 }}>
                                     {docUrl.startsWith('/uploads') ? (
                                       <a
-                                        href={`http://localhost:5000${docUrl}`}
+                                        href={docUrl.startsWith('http') ? docUrl : `http://localhost:5000${docUrl}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         style={{ color: 'var(--accent-secondary)', textDecoration: 'underline' }}

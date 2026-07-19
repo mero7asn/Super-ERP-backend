@@ -41,20 +41,24 @@ const MySchedulePage = () => {
     return () => clearInterval(id);
   }, []);
 
+  const fetchSchedule = async () => {
+    try {
+      const { data } = await API.get(`/ess/schedule?month=${month}`);
+      const d = data.data || {};
+      setSchedules(d.schedules || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchSchedule = async () => {
-      setLoading(true);
-      try {
-        const { data } = await API.get(`/ess/schedule?month=${month}`);
-        const d = data.data || {};
-        setSchedules(d.schedules || []);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(true);
     fetchSchedule();
+    // Keep the workspace schedule fresh so HR assignments/updates reflect live.
+    const id = setInterval(fetchSchedule, 30000);
+    return () => clearInterval(id);
   }, [month]);
 
   const profile = user;

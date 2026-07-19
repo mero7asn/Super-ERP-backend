@@ -12,8 +12,8 @@ exports.protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from the token
-      req.user = await User.findById(decoded.id);
+      // Get user from the token — include smtpPass (select:false) so email sending works
+      req.user = await User.findById(decoded.id).select('+smtpPass');
 
       if (!req.user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });

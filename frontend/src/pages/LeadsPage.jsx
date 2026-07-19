@@ -200,10 +200,10 @@ const LeadsPage = () => {
                   <td>
                     <button
                       className="btn btn-secondary btn-sm"
-                      onClick={() => navigate(`/leads/${lead._id}/offers`)}
+                      onClick={() => navigate(`/leads/${lead._id}`)}
                       style={{ fontSize: 11, padding: '4px 10px' }}
                     >
-                      💼 Offers
+                      👁️ View Lead
                     </button>
                   </td>
                 </tr>

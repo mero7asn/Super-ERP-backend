@@ -50,7 +50,8 @@ const HRM_ROLES = [
 const CRM_NAV_ITEMS = [
   { label: 'Dashboard',          icon: 'dashboard', path: '/dashboard', roles: null },
   { label: 'Leads',              icon: 'leads',     path: '/leads',     roles: ['Super CRM Administrator','Sales Agent','Sales Manager','Marketing Specialist','Marketing Manager','Executive User','System Architect','Business Analyst'] },
-  { label: 'Teams',              icon: 'teams',     path: '/teams',     roles: ['Super CRM Administrator','System Architect','Sales Manager','Sales Agent','Customer Support Manager','Customer Support Agent','Marketing Manager','Marketing Specialist'] },
+  { label: 'My Team',            icon: 'teams',     path: '/teams/my',  roles: ['Super CRM Administrator','System Architect','Sales Manager','Sales Agent','Customer Support Manager','Customer Support Agent','Marketing Manager','Marketing Specialist'] },
+  { label: 'All Teams',           icon: 'teams',     path: '/teams/all', roles: ['Super CRM Administrator','System Architect','Sales Manager','Sales Agent','Customer Support Manager','Customer Support Agent','Marketing Manager','Marketing Specialist'] },
   { label: 'Sales Dashboard',    icon: 'kanban',    path: '/kanban',    roles: ['Super CRM Administrator','Sales Agent','Sales Manager','Executive User','System Architect','Business Analyst'] },
   { label: 'Technical Issues',   icon: 'tickets',   path: '/tickets',   roles: null },
   { label: 'Bookings',           icon: 'bookings',  path: '/bookings',  roles: ['Sales Agent','Sales Manager','Customer Support Agent','Customer Support Manager','CRM Developer','CRM Consultant','System Architect','Super CRM Administrator'] },
@@ -125,6 +126,10 @@ const Sidebar = () => {
           <NavLink to="/emails" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <span className="sidebar-link-icon"><SidebarIcon name="email" /></span>
             Internal Emails
+          </NavLink>
+          <NavLink to="/emails/sent" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+            <span className="sidebar-link-icon"><SidebarIcon name="email" /></span>
+            Sent Emails
           </NavLink>
         </div>
 

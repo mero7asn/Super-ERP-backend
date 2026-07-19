@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useAux, AUX_COLORS, AUX_ICONS } from '../context/AuxContext';
 import { useAuth } from '../context/AuthContext';
 
-const STATUSES = ['Live', 'Training', 'Coaching', 'Break', 'Logged out'];
 
 const fmtSecs = (secs) => {
   const h = Math.floor(secs / 3600);
@@ -21,7 +20,7 @@ const fmtMins = (mins) => {
 
 const AuxTopBar = () => {
   const { user } = useAuth();
-  const { currentAux, statusSince, todayStats, myPlan, changeAux } = useAux();
+  const { currentAux, statusSince, todayStats, myPlan, changeAux, enabledAuxes } = useAux();
   const [elapsed, setElapsed] = useState(0);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -51,9 +50,17 @@ const AuxTopBar = () => {
 
   const statItems = [
     { key: 'Live',     planned: myPlan?.liveMinutes },
+    { key: 'Break',    planned: myPlan?.breakMinutes },
     { key: 'Training', planned: myPlan?.trainingMinutes },
     { key: 'Coaching', planned: myPlan?.coachingMinutes },
-    { key: 'Break',    planned: myPlan?.breakMinutes },
+    { key: 'Lunch',    planned: null },
+  ];
+
+  // All selectable statuses: always include Live & Logged out; add enabled custom AUXes
+  const dynamicStatuses = [
+    'Live',
+    ...(enabledAuxes || []).map(a => a.name),
+    'Logged out',
   ];
 
   return (
@@ -123,9 +130,14 @@ const AuxTopBar = () => {
             borderRadius: 10, overflow: 'hidden', minWidth: 180,
             boxShadow: '0 8px 32px rgba(0,0,0,0.35)', zIndex: 1000,
           }}>
-            {STATUSES.map(s => {
-              const c = AUX_COLORS[s];
+            {dynamicStatuses.map(s => {
+              const c = AUX_COLORS[s] || '#64748B';
+              const icon = AUX_ICONS[s] || '⚪';
               const active = currentAux === s;
+              const auxCfg = (enabledAuxes || []).find(a => a.name === s);
+              const timingHint = auxCfg?.timingMode === 'fixed' && auxCfg?.defaultMinutes
+                ? ` · ${auxCfg.defaultMinutes}m`
+                : auxCfg?.timingMode === 'flexible' ? ' · flexible' : '';
               return (
                 <button
                   key={s}
@@ -142,7 +154,8 @@ const AuxTopBar = () => {
                   }}
                 >
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: c, flexShrink: 0 }} />
-                  {AUX_ICONS[s]} {s}
+                  {icon} {s}
+                  {timingHint && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>{timingHint}</span>}
                 </button>
               );
             })}

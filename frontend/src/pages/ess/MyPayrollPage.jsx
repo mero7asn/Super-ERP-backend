@@ -60,24 +60,28 @@ const MyPayrollPage = () => {
   const [pmMsg, setPmMsg] = useState({ type: '', text: '' });
   const [editingId, setEditingId] = useState(null); // null = new card, string = editing existing
 
+  const fetchAll = async () => {
+    try {
+      const [p, h] = await Promise.all([
+        API.get('/ess/payroll/payslips'),
+        API.get('/ess/payroll/history'),
+      ]);
+      setPayslips(p.data.data || []);
+      setHistory(h.data.data || { history: [], totals: {}, ytdNet: 0, count: 0 });
+      setSelected((p.data.data || [])[0] || null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [p, h] = await Promise.all([
-          API.get('/ess/payroll/payslips'),
-          API.get('/ess/payroll/history'),
-        ]);
-        setPayslips(p.data.data || []);
-        setHistory(h.data.data || { history: [], totals: {}, ytdNet: 0, count: 0 });
-        setSelected((p.data.data || [])[0] || null);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(true);
     fetchAll();
+    // Refresh so a payroll release by HR reflects on the workspace payslip live.
+    const id = setInterval(fetchAll, 30000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {

@@ -3,6 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import { Icon } from '../components/Icons';
 import { DEPARTMENTS, getRolesByDepartment, getDepartmentByRole } from '../services/departmentJobs';
+import { PERMISSION_CATALOG } from '../services/permissions';
+
+// Short display labels for the most meaningful granted permissions (chips).
+const CHIP_KEYS = [
+  'leads.view.all', 'leads.edit.all', 'offers.send', 'offers.view.all',
+  'tickets.view.all', 'tickets.assign', 'campaigns.create', 'analytics.view.executive',
+  'users.permissions.edit', 'payroll.runs.release', 'hrm.schedules.edit', 'settings.edit',
+];
+const CHIP_LABELS = Object.fromEntries(
+  PERMISSION_CATALOG.flatMap(g => g.items.map(i => [i.key, i.label]))
+);
 
 const roleBadge = (role) => {
   const map = {
@@ -131,6 +142,7 @@ const UsersPage = () => {
                 <th>User Details</th>
                 <th>Role Designation</th>
                 <th>Status</th>
+                <th>Email (SMTP)</th>
                 <th>Permissions Enabled</th>
                 <th>Joined</th>
               </tr>
@@ -138,9 +150,9 @@ const UsersPage = () => {
             <tbody>
               {filtered.map(user => {
                 const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
-                const enabledPermissions = Object.entries(user.permissions || {})
-                  .filter(([, val]) => val)
-                  .map(([key]) => key.replace('can', ''));
+                const enabledPermissions = CHIP_KEYS
+                  .filter(k => user.permissions && user.permissions[k])
+                  .map(k => CHIP_LABELS[k] || k.replace('can', ''));
 
                 return (
                   <tr key={user._id} onClick={() => navigate(`/users/${user._id}`)} style={{ cursor: 'pointer' }}>
@@ -168,6 +180,16 @@ const UsersPage = () => {
                       <span className={`badge ${user.isActive ? 'badge-qualified' : 'badge-lost'}`}>
                         {user.isActive ? 'Active' : 'Suspended'}
                       </span>
+                    </td>
+                    <td>
+                      {user.smtpUser ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="badge badge-qualified" style={{ fontSize: 10 }}>✓ Configured</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user.smtpUser}</span>
+                        </div>
+                      ) : (
+                        <span className="badge badge-lost" style={{ fontSize: 10 }}>✗ Not Set</span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 300 }}>

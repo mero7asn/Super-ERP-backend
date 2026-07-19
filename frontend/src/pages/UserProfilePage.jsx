@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
+import { PERMISSION_CATALOG, ALL_PERMISSION_KEYS } from '../services/permissions';
 
 const roleBadge = (role) => {
   const map = {
@@ -28,15 +29,99 @@ const ALL_ROLES = [
   'CRM Developer', 'CRM Consultant', 'System Architect', 'Executive User'
 ];
 
-const permissionLabels = {
-  canViewLeads: 'View Leads',
-  canEditLeads: 'Edit Leads',
-  canDeleteLeads: 'Delete Leads',
-  canViewTickets: 'View Tickets',
-  canEditTickets: 'Edit Tickets',
-  canDeleteTickets: 'Delete Tickets',
-  canManageCampaigns: 'Manage Campaigns',
-  canManageUsers: 'Manage Users',
+// Normalize a user's stored permissions into a full catalog-backed map.
+const normalizePermissions = (stored = {}) => {
+  const base = {};
+  ALL_PERMISSION_KEYS.forEach(k => { base[k] = false; });
+  if (stored && typeof stored === 'object') {
+    Object.entries(stored).forEach(([k, v]) => {
+      if (k in base) base[k] = !!v;
+      else base[k] = !!v; // keep custom keys too
+    });
+  }
+  return base;
+};
+
+// Reusable permission matrix (categorized, with per-group select-all + filter).
+const PermissionMatrix = ({ value, onChange, readOnly = false, filter = '' }) => {
+  const q = filter.trim().toLowerCase();
+  const groups = useMemo(
+    () => PERMISSION_CATALOG
+      .map(g => ({
+        ...g,
+        items: g.items.filter(i => !q || i.label.toLowerCase().includes(q) || i.key.toLowerCase().includes(q)),
+      }))
+      .filter(g => g.items.length > 0),
+    [filter]
+  );
+
+  if (groups.length === 0) {
+    return <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 12 }}>No permissions match “{filter}”.</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {groups.map(g => {
+        const granted = g.items.filter(i => value[i.key]).length;
+        const allOn = granted === g.items.length;
+        const toggleGroup = () => {
+          if (readOnly) return;
+          const next = { ...value };
+          g.items.forEach(i => { next[i.key] = !allOn; });
+          onChange(next);
+        };
+        return (
+          <div key={g.group}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border-color)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{g.group}</span>
+                <span className="badge badge-new" style={{ fontSize: 10 }}>{granted}/{g.items.length}</span>
+              </div>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={toggleGroup}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                >
+                  {allOn ? 'Clear all' : 'Select all'}
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+              {g.items.map(i => {
+                const checked = !!value[i.key];
+                const label = (
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 8, cursor: readOnly ? 'default' : 'pointer',
+                    background: checked ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${checked ? 'rgba(34,197,94,0.25)' : 'var(--border-color)'}`,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={readOnly}
+                      onChange={e => {
+                        if (readOnly) return;
+                        onChange({ ...value, [i.key]: e.target.checked });
+                      }}
+                      style={{ accentColor: '#22c55e', width: 15, height: 15, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 13, color: checked ? 'var(--text-primary)' : 'var(--text-muted)' }}>{i.label}</span>
+                  </label>
+                );
+                return <div key={i.key}>{label}</div>;
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 const UserProfilePage = () => {
@@ -50,11 +135,20 @@ const UserProfilePage = () => {
   const [success, setSuccess] = useState('');
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState(null);
+  const [permFilter, setPermFilter] = useState('');
 
   const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(currentUser?.role);
   const isOwnProfile = currentUser?._id === id;
   const canEdit = isOwnProfile || isAdmin;
   const [managers, setManagers] = useState([]);
+
+  const PROVIDER_PRESETS = {
+    custom: { label: 'Custom / Other', host: '', port: 587, secure: false },
+    gmail: { label: 'Gmail / Google Workspace', host: 'smtp.gmail.com', port: 465, secure: true },
+    outlook: { label: 'Outlook / Microsoft 365', host: 'smtp.office365.com', port: 587, secure: false },
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -93,6 +187,11 @@ const UserProfilePage = () => {
   }, [id]);
 
   const startEditing = () => {
+    let smtpProvider = 'custom';
+    const host = user.smtpHost || '';
+    if (host === 'smtp.gmail.com') smtpProvider = 'gmail';
+    else if (host === 'smtp.office365.com') smtpProvider = 'outlook';
+    
     setForm({
       firstName: user.firstName,
       lastName: user.lastName,
@@ -102,10 +201,17 @@ const UserProfilePage = () => {
       role: user.role,
       isActive: user.isActive,
       supervisor: user.supervisor?._id || user.supervisor || '',
-      permissions: { ...user.permissions },
+      permissions: normalizePermissions(user.permissions),
+      smtpHost: user.smtpHost || '',
+      smtpPort: user.smtpPort || 587,
+      smtpSecure: user.smtpSecure || false,
+      smtpUser: user.smtpUser || '',
+      smtpPass: '',
+      smtpProvider,
     });
     setSuccess('');
     setError('');
+    setSmtpTestResult(null);
     setEditing(true);
   };
 
@@ -119,6 +225,11 @@ const UserProfilePage = () => {
         lastName: form.lastName,
         email: form.email,
         ...(form.password ? { password: form.password } : {}),
+        smtpHost: form.smtpHost || null,
+        smtpPort: form.smtpPort,
+        smtpSecure: form.smtpSecure,
+        smtpUser: form.smtpUser || null,
+        ...(form.smtpPass ? { smtpPass: form.smtpPass } : {}),
         ...(isAdmin ? { title: form.title, role: form.role, isActive: form.isActive, supervisor: form.supervisor || null, permissions: form.permissions } : {}),
       };
       const { data } = await API.put(`/auth/users/${id}`, payload);
@@ -133,6 +244,10 @@ const UserProfilePage = () => {
           role: data.data.role,
           isActive: data.data.isActive,
           permissions: data.data.permissions,
+          smtpHost: data.data.smtpHost,
+          smtpPort: data.data.smtpPort,
+          smtpSecure: data.data.smtpSecure,
+          smtpUser: data.data.smtpUser,
         });
       }
     } catch (err) {
@@ -146,7 +261,6 @@ const UserProfilePage = () => {
   if (!user) return null;
 
   const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
-  const enabledPerms = Object.entries(user.permissions || {}).filter(([, v]) => v).map(([k]) => k);
 
   return (
     <div>
@@ -242,6 +356,130 @@ const UserProfilePage = () => {
                 </div>
               </div>
 
+              {/* SMTP Settings */}
+              <div className="table-wrapper" style={{ padding: 24 }}>
+                <div className="table-title" style={{ marginBottom: 20 }}>
+                  Email Sending Settings (SMTP)
+                  {!isOwnProfile && isAdmin && (
+                    <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--accent-primary)', marginLeft: 8 }}>
+                      Admin: Configuring {user?.firstName}'s email
+                    </span>
+                  )}
+                </div>
+                {/* Sender email info banner */}
+                {user?.smtpUser && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(var(--accent-rgb, 99,102,241),0.08)', borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+                    <span style={{ fontSize: 16 }}>📤</span>
+                    <span>Offers will be sent <strong>from</strong>: <strong style={{ color: 'var(--accent-primary)' }}>{user.smtpUser}</strong></span>
+                  </div>
+                )}
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                  {isOwnProfile
+                    ? 'The sender address on outgoing offer emails will be your SMTP email below — not your CRM login email.'
+                    : `Configure ${user?.firstName} ${user?.lastName}'s SMTP so they can send offer emails directly from their account. Use their personal Gmail App Password or company SMTP credentials.`}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                    <label className="form-label">Provider Preset</label>
+                    <select
+                      className="form-input"
+                      value={(() => {
+                        const entry = Object.entries(PROVIDER_PRESETS).find(([, p]) => p.host === form.smtpHost && p.port === form.smtpPort);
+                        return entry ? entry[0] : 'custom';
+                      })()}
+                      onChange={(e) => {
+                        const preset = PROVIDER_PRESETS[e.target.value];
+                        setForm(f => ({ ...f, smtpHost: preset.host, smtpPort: preset.port, smtpSecure: preset.secure }));
+                      }}
+                    >
+                      {Object.entries(PROVIDER_PRESETS).map(([key, preset]) => (
+                        <option key={key} value={key}>{preset.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">SMTP Host</label>
+                    <input className="form-input" placeholder="smtp.gmail.com" value={form.smtpHost} onChange={e => setForm(f => ({ ...f, smtpHost: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">SMTP Port</label>
+                    <input className="form-input" type="number" placeholder="587" value={form.smtpPort} onChange={e => setForm(f => ({ ...f, smtpPort: parseInt(e.target.value) || 587 }))} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">SMTP Username / Email</label>
+                    <input className="form-input" type="email" placeholder="you@gmail.com" value={form.smtpUser} onChange={e => setForm(f => ({ ...f, smtpUser: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">SMTP Password / App Password</label>
+                    <input
+                      className="form-input"
+                      type="password"
+                      placeholder={user?.smtpUser ? '🔒 Password saved — enter new one to change' : 'App password or SMTP password'}
+                      value={form.smtpPass}
+                      onChange={e => setForm(f => ({ ...f, smtpPass: e.target.value }))}
+                    />
+                    <div style={{ fontSize: 11, color: user?.smtpUser ? 'var(--accent-primary)' : 'var(--text-muted)', marginTop: 4 }}>
+                      {user?.smtpUser
+                        ? '✓ A password is already saved. Leave blank to keep it, or type a new one to update.'
+                        : 'Enter your App Password (Gmail/Outlook) or SMTP password. It will be encrypted and stored securely.'}
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="checkbox"
+                      id="smtpSecure"
+                      checked={form.smtpSecure}
+                      onChange={e => setForm(f => ({ ...f, smtpSecure: e.target.checked }))}
+                      style={{ width: 18, height: 18, cursor: 'pointer' }}
+                    />
+                    <label htmlFor="smtpSecure" style={{ fontWeight: 500, fontSize: 13, cursor: 'pointer' }}>
+                      Use SSL/TLS (port 465). Uncheck for STARTTLS (port 587).
+                    </label>
+                  </div>
+                </div>
+
+                {/* Test Connection Button */}
+                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={smtpTesting || (!form.smtpHost && !user?.smtpUser)}
+                    onClick={async () => {
+                      setSmtpTesting(true);
+                      setSmtpTestResult(null);
+                      try {
+                        // Send current form values so test works even before saving
+                        const testPayload = {};
+                        if (form.smtpHost) testPayload.smtpHost = form.smtpHost;
+                        if (form.smtpPort) testPayload.smtpPort = form.smtpPort;
+                        if (form.smtpSecure !== undefined) testPayload.smtpSecure = form.smtpSecure;
+                        if (form.smtpUser) testPayload.smtpUser = form.smtpUser;
+                        if (form.smtpPass) testPayload.smtpPass = form.smtpPass;
+                        const { data } = await API.post(`/auth/users/${id}/verify-smtp`, testPayload);
+                        setSmtpTestResult({ success: data.success, message: data.message });
+                      } catch (err) {
+                        setSmtpTestResult({ success: false, message: err.response?.data?.message || 'Connection failed' });
+                      } finally {
+                        setSmtpTesting(false);
+                      }
+                    }}
+                  >
+                    {smtpTesting ? '⏳ Testing...' : '🔌 Test Connection'}
+                  </button>
+                  {!form.smtpHost && !user?.smtpUser && (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Fill in your SMTP settings above to test.</span>
+                  )}
+                  {smtpTestResult && (
+                    <span style={{
+                      fontSize: 13, fontWeight: 600,
+                      color: smtpTestResult.success ? 'var(--status-won, #22c55e)' : 'var(--status-lost, #ef4444)'
+                    }}>
+                      {smtpTestResult.success ? '✅' : '❌'} {smtpTestResult.message}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Admin-only fields */}
               {isAdmin && (
                 <>
@@ -276,25 +514,22 @@ const UserProfilePage = () => {
                   </div>
 
                   <div className="table-wrapper" style={{ padding: 24 }}>
-                    <div className="table-title" style={{ marginBottom: 16 }}>Permissions <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>Admin only</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      {Object.entries(permissionLabels).map(([key, label]) => (
-                        <label key={key} style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                          background: form.permissions[key] ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${form.permissions[key] ? 'rgba(34,197,94,0.2)' : 'var(--border-color)'}`,
-                          transition: 'all 0.15s',
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={!!form.permissions[key]}
-                            onChange={e => setForm(f => ({ ...f, permissions: { ...f.permissions, [key]: e.target.checked } }))}
-                            style={{ accentColor: '#22c55e', width: 15, height: 15 }}
-                          />
-                          <span style={{ fontSize: 13, color: form.permissions[key] ? 'var(--text-primary)' : 'var(--text-muted)' }}>{label}</span>
-                        </label>
-                      ))}
+                    <div className="table-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <span>Access Permissions <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>Admin only — grant specific access, not just a role</span></span>
+                    </div>
+                    <input
+                      className="table-search"
+                      placeholder="Filter permissions…"
+                      value={permFilter}
+                      onChange={e => setPermFilter(e.target.value)}
+                      style={{ marginBottom: 16, maxWidth: 320 }}
+                    />
+                    <PermissionMatrix
+                      value={form.permissions}
+                      onChange={next => setForm(f => ({ ...f, permissions: next }))}
+                    />
+                    <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+                      {ALL_PERMISSION_KEYS.filter(k => form.permissions[k]).length} of {ALL_PERMISSION_KEYS.length} specific permissions granted.
                     </div>
                   </div>
                 </>
@@ -333,29 +568,8 @@ const UserProfilePage = () => {
               </div>
 
               <div className="table-wrapper" style={{ padding: 24 }}>
-                <div className="table-title" style={{ marginBottom: 16 }}>Permissions</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {Object.keys(permissionLabels).map((key) => {
-                    const granted = enabledPerms.includes(key);
-                    return (
-                      <div key={key} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 12px', borderRadius: 8,
-                        background: granted ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${granted ? 'rgba(34,197,94,0.2)' : 'var(--border-color)'}`,
-                      }}>
-                        <div style={{
-                          width: 8, height: 8, borderRadius: '50%',
-                          background: granted ? '#22c55e' : 'var(--text-muted)',
-                          flexShrink: 0,
-                        }} />
-                        <span style={{ fontSize: 13, color: granted ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                          {permissionLabels[key]}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <div className="table-title" style={{ marginBottom: 12 }}>Access Permissions</div>
+                <PermissionMatrix value={normalizePermissions(user.permissions)} readOnly />
               </div>
             </>
           )}

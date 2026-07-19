@@ -16,7 +16,9 @@ const kpiSchema = new mongoose.Schema({
   },
   score: {
     type: Number,
-    required: true
+    required: true,
+    min: [0, 'KPI score cannot be less than 0'],
+    max: [100, 'KPI score cannot exceed 100']
   },
   achievementDate: {
     type: Date,

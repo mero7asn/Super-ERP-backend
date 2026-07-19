@@ -19,6 +19,18 @@ const emailSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  htmlBody: {
+    type: String,
+    default: null
+  },
+  fromEmail: {
+    type: String,
+    default: null
+  },
+  toEmail: {
+    type: String,
+    default: null
+  },
   sentAt: {
     type: Date,
     default: Date.now
@@ -40,6 +52,30 @@ const emailSchema = new mongoose.Schema({
   },
   readAt: {
     type: Date,
+    default: null
+  },
+  // External delivery status
+  status: {
+    type: String,
+    enum: ['draft', 'sent', 'delivered', 'failed', 'bounced'],
+    default: 'sent'
+  },
+  messageId: {
+    type: String,
+    default: null
+  },
+  providerError: {
+    type: String,
+    default: null
+  },
+  // Offer link
+  offerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Offer',
+    default: null
+  },
+  offerVersion: {
+    type: Number,
     default: null
   }
 }, { timestamps: true });

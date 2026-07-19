@@ -1,5 +1,6 @@
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
+const Email = require('../models/Email');
 
 const TECH_ROLES = ['CRM Developer', 'CRM Consultant', 'System Architect'];
 const ADMIN_ROLES = ['Super CRM Administrator'];
@@ -210,10 +211,29 @@ exports.updateTicket = async (req, res) => {
       updates.resolvedAt = new Date();
     }
 
+    const previousAssignee = ticket.assignedTo ? ticket.assignedTo.toString() : null;
+
     ticket = await Ticket.findByIdAndUpdate(req.params.id, updates, {
       new: true,
       runValidators: true
     });
+
+    // Send internal email notification when assignee changes
+    const newAssignee = updates.assignedTo ? updates.assignedTo.toString() : null;
+    if (newAssignee && newAssignee !== previousAssignee) {
+      try {
+        await Email.create({
+          senderId: req.user._id,
+          recipientId: newAssignee,
+          subject: `[Ticket Assigned] ${ticket.subject}`,
+          body: `Hello,\n\nTicket #${ticket._id} has been assigned to you.\n\nSubject: ${ticket.subject}\nPriority: ${ticket.priority}\nAffected Page: ${ticket.affectedPage || 'N/A'}\n\nPlease review and update the ticket status accordingly.\n\nBest regards,\n${req.user.firstName} ${req.user.lastName}`,
+          fromEmail: req.user.email,
+          toEmail: (await User.findById(newAssignee).select('email'))?.email || ''
+        });
+      } catch (notifyErr) {
+        console.error('Failed to send ticket assignment notification:', notifyErr.message);
+      }
+    }
 
     const populated = await populateTicket(ticket);
 

@@ -1,5 +1,6 @@
 const Booking = require('../models/Booking');
 const Offer = require('../models/Offer');
+const Lead = require('../models/Lead');
 
 // @desc    Get a booking by its reference (public-ish lookup used by the
 //          booking lookup tool and confirmation screens)
@@ -60,6 +61,18 @@ exports.updateBooking = async (req, res) => {
     if (req.body.status) booking.status = req.body.status;
     if (req.body.notes !== undefined) booking.notes = req.body.notes;
     await booking.save();
+
+    // Cascade status changes: revert the linked Offer and Lead when booking is canceled/refunded
+    if (req.body.status === 'Canceled' || req.body.status === 'Refunded') {
+      const newOfferStatus = req.body.status === 'Refunded' ? 'Refunded' : 'Canceled';
+      try {
+        await Offer.findByIdAndUpdate(booking.offer, { status: newOfferStatus });
+        // Revert lead from Converted back to Negotiation so it re-enters the pipeline
+        await Lead.findByIdAndUpdate(booking.lead, { status: 'Negotiation' });
+      } catch (cascadeErr) {
+        console.error('Failed to cascade booking status to offer/lead:', cascadeErr.message);
+      }
+    }
 
     res.json({ success: true, data: booking });
   } catch (error) {

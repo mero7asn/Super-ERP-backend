@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { encrypt, decrypt } = require('../services/encryption');
 
 const userSchema = new mongoose.Schema({
   firstName: {
@@ -59,17 +60,15 @@ const userSchema = new mongoose.Schema({
     ],
     required: true
   },
+  // Granular, per-feature permission matrix. Stored as a flat boolean map
+  // keyed by stable dotted keys (e.g. "leads.edit.all"). Any key from the
+  // canonical catalog (config/permissions.js) can be added. Defaults to all
+  // false so access must be explicitly granted.
   permissions: {
-    canViewLeads: { type: Boolean, default: false },
-    canEditLeads: { type: Boolean, default: false },
-    canDeleteLeads: { type: Boolean, default: false },
-    canViewTickets: { type: Boolean, default: false },
-    canEditTickets: { type: Boolean, default: false },
-    canDeleteTickets: { type: Boolean, default: false },
-    canManageCampaigns: { type: Boolean, default: false },
-    canManageUsers: { type: Boolean, default: false },
-    customPermissions: { type: mongoose.Schema.Types.Mixed, default: {} }
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
   },
+  customPermissions: { type: mongoose.Schema.Types.Mixed, default: {} },
   isActive: {
     type: Boolean,
     default: true
@@ -94,8 +93,12 @@ const userSchema = new mongoose.Schema({
   },
   auxStatus: {
     type: String,
-    enum: ['Live', 'Training', 'Break', 'Coaching', 'Logged out'],
+    enum: ['Live', 'Training', 'Break', 'Coaching', 'Lunch', 'Other', 'Logged out'],
     default: 'Logged out'
+  },
+  activeStatusSince: {
+    type: Date,
+    default: null
   },
   isPersonalTeamLeader: {
     type: Boolean,
@@ -119,14 +122,47 @@ const userSchema = new mongoose.Schema({
   },
   rtmFlagReason: {
     type: String,
-    enum: ['Extended Live', 'Out of Shift', 'Manual', null],
+    enum: ['Extended Live', 'Extended Break', 'Out of Shift', 'Working on Off Day', 'Manual', null],
     default: null
   },
   rtmSuppressUntil: {
     type: Date,
     default: null
+  },
+  smtpHost: {
+    type: String,
+    default: null
+  },
+  smtpPort: {
+    type: Number,
+    default: 587
+  },
+  smtpSecure: {
+    type: Boolean,
+    default: false
+  },
+  smtpUser: {
+    type: String,
+    default: null
+  },
+  smtpPass: {
+    type: String,
+    default: null,
+    select: false
   }
 }, { timestamps: true });
+
+// Encrypt smtpPass before saving
+userSchema.pre('save', async function() {
+  if (this.isModified('smtpPass') && this.smtpPass) {
+    this.smtpPass = encrypt(this.smtpPass);
+  }
+});
+
+// Decrypt smtpPass on retrieval
+userSchema.methods.getSmtpPass = function() {
+  return decrypt(this.smtpPass);
+};
 
 // Encrypt password using bcrypt before saving
 userSchema.pre('save', async function() {

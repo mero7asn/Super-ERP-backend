@@ -49,7 +49,13 @@ const detailedScheduleSchema = new mongoose.Schema({
     type: Map,
     of: {
       shift: String,
-      isOffDay: Boolean
+      isOffDay: Boolean,
+      customStartTime: String,
+      customEndTime: String,
+      liveTarget: Number,
+      breakTarget: Number,
+      trainingTarget: Number,
+      coachingTarget: Number
     },
     default: {}
   },

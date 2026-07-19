@@ -40,3 +40,22 @@ export const useAux = () => {
 
   return { currentAux, statusSince, todayStats, myPlan, teamAux, counts, changeAux, fetchTeam, auxConfig, enabledAuxes };
 };
+
+export const AUX_COLORS = {
+  Live: '#10B981',
+  Break: '#EF4444',
+  Lunch: '#F59E0B',
+  Training: '#3B82F6',
+  Coaching: '#8B5CF6',
+  'Logged out': '#6B7280'
+};
+
+export const AUX_ICONS = {
+  Live: '🟢',
+  Break: '🔴',
+  Lunch: '🟠',
+  Training: '🟡',
+  Coaching: '🔵',
+  'Logged out': '⚫'
+};
+

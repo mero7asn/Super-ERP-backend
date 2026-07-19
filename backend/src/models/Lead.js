@@ -15,7 +15,7 @@ const leadSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['Meta', 'Google', 'Other'],
+    enum: ['Meta', 'Google', 'Website', 'Manual', 'Other'],
     required: [true, 'Source is required']
   },
   status: {

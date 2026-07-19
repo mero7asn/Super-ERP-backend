@@ -5,6 +5,10 @@ const DetailedSchedule = require('../models/DetailedSchedule');
 const KPI = require('../models/KPI');
 const Training = require('../models/Training');
 const JobVacancy = require('../models/JobVacancy');
+const PayrollEntry = require('../models/PayrollEntry');
+const PayrollAlert = require('../models/PayrollAlert');
+const EmployeeLoan = require('../models/EmployeeLoan');
+const { put } = require('@vercel/blob');
 const Candidate = require('../models/Candidate');
 const Partnership = require('../models/Partnership');
 const Email = require('../models/Email');
@@ -12,6 +16,10 @@ const LeaveRequest = require('../models/LeaveRequest');
 const BenefitSuggestion = require('../models/BenefitSuggestion');
 const AuxLog = require('../models/AuxLog');
 const AuxSchedule = require('../models/AuxSchedule');
+const ScheduleChangeLog = require('../models/ScheduleChangeLog');
+const SystemSetting = require('../models/SystemSetting');
+const { sendEmail, getGlobalEmailConfig } = require('../services/emailService');
+const { notifyEmployee } = require('../services/notificationService');
 
 // Default doc keys that are always stored in govDocs (not customGovDocs)
 const DEFAULT_DOC_KEYS = ['nationalId', 'socialInsurance', 'militaryStatus', 'graduationCertificate', 'criminalRecord'];
@@ -31,8 +39,27 @@ exports.sendEmail = async (req, res) => {
       subject,
       body,
       parentId: parentId || null,
-      isReply: !!parentId
+      isReply: !!parentId,
+      fromEmail: req.user.smtpUser || req.user.email,
+      toEmail: recipient.email
     });
+
+    try {
+      const globalConfig = await getGlobalEmailConfig();
+      await sendEmail(req.user, {
+        to: recipient.email,
+        subject: subject,
+        text: body,
+        html: `<div style="font-family:Arial,Helvetica,sans-serif;white-space:pre-wrap;">${body}</div>`
+      }, globalConfig);
+      emailObj.status = 'sent';
+    } catch (emailErr) {
+      console.error('Failed to send email:', emailErr);
+      emailObj.status = 'failed';
+      emailObj.providerError = emailErr.message;
+    }
+
+    await emailObj.save();
 
     // Populate sender info for the response
     await emailObj.populate('senderId', 'firstName lastName email role');
@@ -46,7 +73,6 @@ exports.sendEmail = async (req, res) => {
 
 exports.getInbox = async (req, res) => {
   try {
-    // Fetch top-level emails AND replies addressed to this user
     const emails = await Email.find({ recipientId: req.user._id })
       .populate('senderId', 'firstName lastName email role')
       .populate('recipientId', 'firstName lastName email role')
@@ -66,6 +92,18 @@ exports.getSent = async (req, res) => {
       .populate('senderId', 'firstName lastName email role')
       .sort({ sentAt: -1 });
     res.json({ success: true, data: emails });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.getEmailPreview = async (req, res) => {
+  try {
+    const email = await Email.findOne({ _id: req.params.id, senderId: req.user._id })
+      .populate('recipientId', 'firstName lastName email role')
+      .populate('senderId', 'firstName lastName email role');
+    if (!email) return res.status(404).json({ message: 'Email not found' });
+    res.json({ success: true, data: email });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -114,7 +152,14 @@ exports.uploadSignedContract = async (req, res) => {
     const targetId = employeeId || req.user._id;
     const contract = await Contract.findOne({ employeeId: targetId });
     if (!contract) return res.status(404).json({ message: 'Contract not found. Create a contract first.' });
-    contract.signedContractFile = `/uploads/gov-docs/${req.file.filename}`;
+    
+    const uniqueFilename = `gov-docs/signed-contract-${Date.now()}-${req.file.originalname}`;
+    const blob = await put(uniqueFilename, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype,
+    });
+    
+    contract.signedContractFile = blob.url;
     await contract.save();
     res.json({ success: true, fileUrl: contract.signedContractFile, data: contract });
   } catch (err) {
@@ -318,7 +363,13 @@ exports.uploadGovDocFile = async (req, res) => {
       return res.status(404).json({ message: 'Contract not found. Create a contract first.' });
     }
 
-    const fileUrl = `/uploads/gov-docs/${req.file.filename}`;
+    const uniqueFilename = `gov-docs/govdoc-${Date.now()}-${req.file.originalname}`;
+    const blob = await put(uniqueFilename, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype,
+    });
+    const fileUrl = blob.url;
+    
     const detailsPayload = {
       status: 'Submitted',
       remarks: 'File uploaded – awaiting HR verification',
@@ -541,7 +592,7 @@ exports.updateLeaveStatus = async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
 
-    const leave = await LeaveRequest.findById(id);
+    const leave = await LeaveRequest.findById(id).populate('employeeId', 'firstName lastName email _id');
     if (!leave) {
       return res.status(404).json({ message: 'Leave request not found' });
     }
@@ -549,6 +600,26 @@ exports.updateLeaveStatus = async (req, res) => {
     leave.status = status;
     leave.reviewedBy = req.user._id;
     await leave.save();
+
+    // Notify the employee of the leave decision via internal email
+    try {
+      const emp = leave.employeeId;
+      if (emp) {
+        const leaveStart = new Date(leave.startDate).toLocaleDateString();
+        const leaveEnd   = new Date(leave.endDate).toLocaleDateString();
+        const statusEmoji = status === 'Approved' ? '✅' : '❌';
+        await Email.create({
+          senderId: req.user._id,
+          recipientId: emp._id,
+          subject: `${statusEmoji} Your Leave Request has been ${status}`,
+          body: `Dear ${emp.firstName},\n\nYour ${leave.leaveType} leave request from ${leaveStart} to ${leaveEnd} (${leave.daysCount} day${leave.daysCount !== 1 ? 's' : ''}) has been ${status}.\n\n${leave.paidDays > 0 ? `Paid days: ${leave.paidDays}` : ''}${leave.unpaidDays > 0 ? `\nUnpaid days: ${leave.unpaidDays}` : ''}\n\nReviewed by: ${req.user.firstName} ${req.user.lastName}\n\nIf you have any questions, please contact the HR department.\n\nBest regards,\nHR Department`,
+          fromEmail: req.user.email,
+          toEmail: emp.email
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Failed to send leave notification:', notifyErr.message);
+    }
 
     res.json({ success: true, data: leave });
   } catch (error) {
@@ -587,25 +658,44 @@ exports.getDetailedSchedule = async (req, res) => {
 
 exports.updateDetailedSchedule = async (req, res) => {
   try {
-    const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides } = req.body;
+    const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides, changeSource, changeNote } = req.body;
 
     const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator'].includes(req.user.role);
-    if (!isHR) {
-      return res.status(403).json({ message: 'Not authorized to change schedules.' });
+    const isRTM = ['RTM Team Member'].includes(req.user.role);
+    const isOwnSchedule = req.user._id.toString() === employeeId?.toString();
+
+    if (!isHR && !isRTM && !isOwnSchedule) {
+      return res.status(403).json({ message: 'Not authorized to change this schedule.' });
     }
 
     let schedule = await DetailedSchedule.findOne({ employeeId, month });
+    const oldSchedule = schedule ? {
+      defaultShift: schedule.defaultShift,
+      defaultOffDays: schedule.defaultOffDays,
+      weeklyOverrides: schedule.weeklyOverrides,
+      dailyOverrides: schedule.dailyOverrides,
+    } : null;
+
     if (!schedule) {
       schedule = new DetailedSchedule({ employeeId, month });
     }
 
-    if (defaultShift !== undefined) schedule.defaultShift = defaultShift;
-    if (defaultOffDays !== undefined) schedule.defaultOffDays = defaultOffDays;
+    const changedFields = [];
+    if (defaultShift !== undefined && defaultShift !== schedule.defaultShift) {
+      changedFields.push({ field: 'defaultShift', oldValue: schedule.defaultShift, newValue: defaultShift });
+      schedule.defaultShift = defaultShift;
+    }
+    if (defaultOffDays !== undefined) {
+      changedFields.push({ field: 'defaultOffDays', oldValue: schedule.defaultOffDays, newValue: defaultOffDays });
+      schedule.defaultOffDays = defaultOffDays;
+    }
     if (weeklyOverrides !== undefined) {
+      changedFields.push({ field: 'weeklyOverrides', oldValue: oldSchedule?.weeklyOverrides, newValue: weeklyOverrides });
       schedule.weeklyOverrides = weeklyOverrides;
       schedule.markModified('weeklyOverrides');
     }
     if (dailyOverrides !== undefined) {
+      changedFields.push({ field: 'dailyOverrides', oldValue: oldSchedule?.dailyOverrides, newValue: dailyOverrides });
       schedule.dailyOverrides = dailyOverrides;
       schedule.markModified('dailyOverrides');
     }
@@ -613,12 +703,83 @@ exports.updateDetailedSchedule = async (req, res) => {
 
     await schedule.save();
 
-    // Propagate default shift to user profile as well for backward compatibility
+    // Determine change source
+    const source = changeSource || (isRTM ? 'RTM' : isOwnSchedule ? 'Personal' : 'HR');
+
+    // Write change log entries for each changed field
+    for (const ch of changedFields) {
+      await ScheduleChangeLog.create({
+        employeeId,
+        changedBy: req.user._id,
+        changedByRole: req.user.role,
+        changeSource: source,
+        month,
+        field: ch.field,
+        oldValue: ch.oldValue,
+        newValue: ch.newValue,
+        note: changeNote || ''
+      });
+    }
+
     if (defaultShift) {
       await User.findByIdAndUpdate(employeeId, {
         shift: defaultShift,
         weeklyOffDays: defaultOffDays
       });
+    }
+
+    // ── Sync to the employee's workspace (AuxSchedule) ──────────
+    // The ESS "My Schedule" workspace view reads AuxSchedule, while HR
+    // assigns schedules via DetailedSchedule. Without this sync, an
+    // employee's assigned daily/weekly/monthly schedule never appears
+    // in their workspace. We mirror the assignment here on every change.
+    try {
+      const weekLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'];
+      const weeklyOverrides = weekLabels
+        .filter(w => schedule.weeklyOverrides && schedule.weeklyOverrides.get && schedule.weeklyOverrides.get(w))
+        .map(w => {
+          const o = schedule.weeklyOverrides.get(w);
+          return {
+            weekLabel: w,
+            liveMinutes: schedule.defaultLiveTarget ?? 480,
+            breakMinutes: schedule.defaultBreakTarget ?? 60,
+            trainingMinutes: schedule.defaultTrainingTarget ?? 0,
+            coachingMinutes: schedule.defaultCoachingTarget ?? 0,
+          };
+        });
+
+      await AuxSchedule.findOneAndUpdate(
+        { userId: employeeId, month },
+        {
+          userId: employeeId,
+          month,
+          monthlyPlan: {
+            liveMinutes: schedule.defaultLiveTarget ?? 480,
+            breakMinutes: schedule.defaultBreakTarget ?? 60,
+            trainingMinutes: schedule.defaultTrainingTarget ?? 0,
+            coachingMinutes: schedule.defaultCoachingTarget ?? 0,
+          },
+          weeklyOverrides,
+          updatedBy: req.user._id,
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (syncErr) {
+      console.error('Failed to sync DetailedSchedule -> AuxSchedule:', syncErr.message);
+    }
+
+    // ── Notify the employee of the schedule assignment/update ────
+    if (changedFields.length > 0 && !isOwnSchedule) {
+      const emp = await User.findById(employeeId).select('firstName email');
+      if (emp) {
+        const summary = changedFields.map(c => c.field).join(', ');
+        await notifyEmployee({
+          senderId: req.user._id,
+          recipientId: employeeId,
+          subject: `Your schedule for ${month} has been ${oldSchedule ? 'updated' : 'assigned'}`,
+          body: `Dear ${emp.firstName},\n\nYour work schedule for ${month} has been ${oldSchedule ? 'updated' : 'assigned'} (${summary}).\n\nShift: ${schedule.defaultShift}\nDefault Off Days: ${(schedule.defaultOffDays || []).join(', ')}\n\nYou can view the full plan under Employee Self-Service > My Schedule.\n\nBest regards,\nHR Department`,
+        });
+      }
     }
 
     res.json({ success: true, data: schedule });
@@ -728,6 +889,17 @@ exports.updateAuxStatus = async (req, res) => {
     const { auxStatus } = req.body;
     const now = new Date();
 
+    // Validate against enabled AUXes (Live and Logged out are always allowed)
+    if (!['Live', 'Logged out'].includes(auxStatus)) {
+      const auxSetting = await SystemSetting.findOne({ key: 'auxConfig' });
+      if (auxSetting && auxSetting.value && auxSetting.value.availableAuxes) {
+        const enabledAux = auxSetting.value.availableAuxes.find(a => a.name === auxStatus && a.enabled);
+        if (!enabledAux) {
+          return res.status(400).json({ message: `AUX type "${auxStatus}" is not enabled by your administrator.` });
+        }
+      }
+    }
+
     // Close the previous open log entry
     const openLog = await AuxLog.findOne({ userId: req.user._id, endedAt: null });
     if (openLog) {
@@ -740,6 +912,7 @@ exports.updateAuxStatus = async (req, res) => {
     const newLog = await AuxLog.create({ userId: req.user._id, status: auxStatus, startedAt: now });
 
     req.user.auxStatus = auxStatus;
+    req.user.activeStatusSince = now;
     await req.user.save();
     res.json({ success: true, data: { auxStatus: req.user.auxStatus, statusSince: newLog.startedAt } });
   } catch (error) {
@@ -770,7 +943,17 @@ const teamOf = (u) => {
 
 exports.getTeamAux = async (req, res) => {
   try {
-    const users = await User.find({ isActive: true }, 'firstName lastName email role department auxStatus shift weeklyOffDays rtmFlagged rtmFlaggedAt rtmFlagReason rtmSuppressUntil');
+    const users = await User.find({ isActive: true }, 'firstName lastName email role department auxStatus activeStatusSince shift weeklyOffDays rtmFlagged rtmFlaggedAt rtmFlagReason rtmSuppressUntil');
+
+    // Load AUX config for break duration thresholds
+    const auxSetting = await SystemSetting.findOne({ key: 'auxConfig' });
+    const auxConfig = auxSetting?.value?.availableAuxes || [];
+    const getMaxMinutes = (name) => {
+      const cfg = auxConfig.find(a => a.name === name);
+      return cfg && cfg.timingMode === 'fixed' && cfg.defaultMinutes ? cfg.defaultMinutes : null;
+    };
+    const breakMaxMinutes = getMaxMinutes('Break') || 15;
+    const lunchMaxMinutes = getMaxMinutes('Lunch') || 30;
 
     // Attach today's live duration for each user
     const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -784,16 +967,18 @@ exports.getTeamAux = async (req, res) => {
     
     for (const u of users) {
       const userLogs = logs.filter(l => l.userId.toString() === u._id.toString());
-      const stats = { Live: 0, Break: 0, Training: 0, 'Logged out': 0 };
-      let activeStatusSince = null;
+      const stats = { Live: 0, Break: 0, Lunch: 0, Training: 0, Coaching: 0, Other: 0, 'Logged out': 0 };
+      let activeStatusSince = u.activeStatusSince || null;
       let activeLiveLog = null;
+      let activeBreakLog = null;
+      let activeLunchLog = null;
 
       userLogs.forEach(l => {
         if (l.endedAt === null) {
           activeStatusSince = l.startedAt;
-          if (l.status === 'Live') {
-            activeLiveLog = l;
-          }
+          if (l.status === 'Live') activeLiveLog = l;
+          if (l.status === 'Break') activeBreakLog = l;
+          if (l.status === 'Lunch') activeLunchLog = l;
         }
         const mins = l.durationMinutes ?? Math.round((Date.now() - l.startedAt) / 60000);
         stats[l.status] = (stats[l.status] || 0) + mins;
@@ -805,7 +990,6 @@ exports.getTeamAux = async (req, res) => {
       let isOffDay = false;
       if (window) {
         if (window.overnight) {
-          // Shift crosses midnight: inside if after start OR before end
           withinShift = nowMin >= window.start || nowMin <= window.end;
         } else {
           withinShift = nowMin >= window.start && nowMin <= window.end;
@@ -813,30 +997,50 @@ exports.getTeamAux = async (req, res) => {
         isOffDay = Array.isArray(u.weeklyOffDays) && u.weeklyOffDays.includes(dayName);
       }
 
-      // Suppression: a manual unflag holds the flag for 15 minutes,
-      // preventing automatic re-flagging during that window.
+      // Suppression logic
       const suppressed = u.rtmSuppressUntil && new Date(u.rtmSuppressUntil).getTime() > Date.now();
       const suppressUntil = suppressed ? new Date(u.rtmSuppressUntil).getTime() : null;
 
-      // Flagging logic
-      // 1) Live for more than 3 hours (180 mins) -> Extended Live
-      // 2) Logged in (Live) outside of scheduled shift / on an off day -> Out of Shift
-      // While suppressed, the agent stays unflagged regardless of prior state.
+      // --- Enhanced Flagging Logic ---
       let shouldFlag = suppressed ? false : u.rtmFlagged;
       let flagReason = u.rtmFlagReason;
 
       if (!suppressed) {
-        const liveOutTofShift = activeLiveLog && window && (!withinShift || isOffDay);
-
+        // 1) Extended Live (>= 3 hours)
         if (activeLiveLog) {
           const liveDurationMinutes = Math.round((Date.now() - activeLiveLog.startedAt) / 60000);
-          if (liveDurationMinutes >= 180 && !u.rtmFlagged) {
+          if (liveDurationMinutes >= 180) {
             shouldFlag = true;
             flagReason = 'Extended Live';
           }
         }
 
-        if (liveOutTofShift && !shouldFlag) {
+        // 2) Extended Break (exceeds configured max)
+        if (activeBreakLog && !shouldFlag) {
+          const breakDurationMinutes = Math.round((Date.now() - activeBreakLog.startedAt) / 60000);
+          if (breakDurationMinutes > breakMaxMinutes) {
+            shouldFlag = true;
+            flagReason = 'Extended Break';
+          }
+        }
+
+        // 3) Extended Lunch (exceeds configured max)
+        if (activeLunchLog && !shouldFlag) {
+          const lunchDurationMinutes = Math.round((Date.now() - activeLunchLog.startedAt) / 60000);
+          if (lunchDurationMinutes > lunchMaxMinutes) {
+            shouldFlag = true;
+            flagReason = 'Extended Break'; // reuse Extended Break flag reason for Lunch overruns
+          }
+        }
+
+        // 4) Working on Off Day
+        if (activeLiveLog && isOffDay && !shouldFlag) {
+          shouldFlag = true;
+          flagReason = 'Working on Off Day';
+        }
+
+        // 5) Out of Shift (active but outside shift window, not an off-day)
+        if (activeLiveLog && window && !withinShift && !isOffDay && !shouldFlag) {
           shouldFlag = true;
           flagReason = 'Out of Shift';
         }
@@ -1204,6 +1408,105 @@ exports.getAuxSchedules = async (req, res) => {
       .populate('createdBy', 'firstName lastName')
       .populate('updatedBy', 'firstName lastName');
     res.json({ success: true, data: schedules });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.copyScheduleToNextMonth = async (req, res) => {
+  try {
+    const { employeeId, month } = req.body;
+    const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator'].includes(req.user.role);
+    const isOwnSchedule = req.user._id.toString() === employeeId?.toString();
+    if (!isHR && !isOwnSchedule) {
+      return res.status(403).json({ message: 'Not authorized.' });
+    }
+
+    const [y, m] = month.split('-').map(Number);
+    const nextMonth = `${y}-${String(m + 1).padStart(2, '0')}`;
+    if (m === 12) nextMonth = `${y + 1}-01`;
+
+    const source = await DetailedSchedule.findOne({ employeeId, month });
+    if (!source) {
+      return res.status(404).json({ message: 'Source schedule not found for the selected month.' });
+    }
+
+    const existing = await DetailedSchedule.findOne({ employeeId, month: nextMonth });
+    if (existing) {
+      return res.status(409).json({ message: 'Schedule already exists for next month. Update it manually.' });
+    }
+
+    const copy = await DetailedSchedule.create({
+      employeeId,
+      month: nextMonth,
+      defaultShift: source.defaultShift,
+      defaultOffDays: source.defaultOffDays,
+      defaultLiveTarget: source.defaultLiveTarget,
+      defaultBreakTarget: source.defaultBreakTarget,
+      defaultTrainingTarget: source.defaultTrainingTarget,
+      defaultCoachingTarget: source.defaultCoachingTarget,
+      weeklyOverrides: source.weeklyOverrides,
+      dailyOverrides: source.dailyOverrides,
+      createdBy: req.user._id
+    });
+
+    res.json({ success: true, data: copy, message: `Schedule copied to ${nextMonth}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.sendScheduleReminders = async (req, res) => {
+  try {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+
+    const employees = await User.find({ isActive: true });
+    let remindersSent = 0;
+
+    for (const emp of employees) {
+      const existing = await DetailedSchedule.findOne({ employeeId: emp._id, month: nextMonth });
+      if (!existing) {
+        await Email.create({
+          senderId: req.user._id,
+          recipientId: emp._id,
+          subject: `Reminder: Please set your schedule for ${nextMonth}`,
+          body: `Dear ${emp.firstName},\n\nPlease set your work schedule for ${nextMonth} before the month starts.\n\nGo to Personal Department > Profile & Schedule to update your schedule.\n\nBest regards,\nHR Department`
+        });
+        remindersSent++;
+      }
+    }
+
+    res.json({ success: true, message: `Sent ${remindersSent} schedule reminders for ${nextMonth}.` });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// --- 10. SCHEDULE CHANGE LOGS ---
+exports.getScheduleChangeLogs = async (req, res) => {
+  try {
+    const { employeeId, changedBy, changeSource, month, from, to } = req.query;
+    const query = {};
+    if (employeeId) query.employeeId = employeeId;
+    if (changedBy) query.changedBy = changedBy;
+    if (changeSource) query.changeSource = changeSource;
+    if (month) query.month = month;
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) query.createdAt.$lte = new Date(to);
+    }
+
+    const logs = await ScheduleChangeLog.find(query)
+      .populate('employeeId', 'firstName lastName role department')
+      .populate('changedBy', 'firstName lastName role')
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    res.json({ success: true, data: logs });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

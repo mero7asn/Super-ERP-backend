@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 import logo from '../assets/logo.png';
 
 const CampaignFormPage = () => {
@@ -16,7 +16,7 @@ const CampaignFormPage = () => {
   useEffect(() => {
     const fetchCampaign = async () => {
       try {
-        const { data } = await axios.get(`http://localhost:5000/api/public/form/${slug}`);
+        const { data } = await API.get(`/public/form/${slug}`);
         setCampaign(data.data);
       } catch (err) {
         setError(err.response?.data?.message || 'This form is not available.');
@@ -32,7 +32,7 @@ const CampaignFormPage = () => {
     setSubmitting(true);
     setFormError('');
     try {
-      await axios.post(`http://localhost:5000/api/public/form/${slug}`, form);
+      await API.post(`/public/form/${slug}`, form);
       setSubmitted(true);
     } catch (err) {
       setFormError(err.response?.data?.message || 'Submission failed. Please try again.');

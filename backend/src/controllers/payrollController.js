@@ -20,6 +20,7 @@ const CompanyBankAccount  = require('../models/CompanyBankAccount');
 const PaymentTransaction  = require('../models/PaymentTransaction');
 const { disburse, LIVE_MODE } = require('../services/disbursementService');
 const { encrypt, decrypt, maskAccount } = require('../services/encryption');
+const { notifyEmployee } = require('../services/notificationService');
 
 // ─────────────────────────────────────────────────────────────────
 // RBAC helpers
@@ -169,7 +170,7 @@ exports.generatePayrollRun = async (req, res) => {
       });
     }
 
-    // ── Salary run (original logic) ──────────────────────────────
+    // ── Salary run (updated logic) ──────────────────────────────
     const [y, m] = period.split('-').map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
     const periodStart = new Date(y, m - 1, 1);
@@ -180,24 +181,114 @@ exports.generatePayrollRun = async (req, res) => {
       endDate:   { $gte: periodStart },
     });
     const loans = await EmployeeLoan.find({ status: 'Active' });
+    const kpiRecords = await KPI.find({
+      achievementDate: { $gte: periodStart, $lte: periodEnd }
+    });
     const alerts  = [];
-    let totalGross = 0, totalTax = 0, totalDeductions = 0, totalBonuses = 0, totalAllowances = 0;
+    let totalGross = 0, totalTax = 0, totalDeductions = 0, totalBonuses = 0, totalAllowances = 0, totalNet = 0;
 
     for (const c of contracts) {
       const emp = c.employeeId;
       if (!emp) continue;
 
       const baseSalary   = c.baseSalary  || 0;
-      const netSalaryBound = c.netSalary || baseSalary;
 
-      // --- Allowances (simplified, based on role tier) ---
-      const transportAllowance = baseSalary >= 10000 ? 500  : 300;
-      const mealAllowance      = baseSalary >= 10000 ? 300  : 150;
-      const mobileAllowance    = 200;
-      const housingAllowance   = baseSalary >= 20000 ? 2000 : 0;
-      const fuelAllowance      = emp.role?.includes('Manager') || emp.role?.includes('Director') ? 1000 : 0;
+      // Calculate employee average KPI score for the period
+      const empKPIs = kpiRecords.filter(k => k.employeeId?.toString() === emp._id?.toString());
+      const avgScore = empKPIs.length 
+        ? empKPIs.reduce((s, k) => s + k.score, 0) / empKPIs.length 
+        : null;
+
+      // --- Active Loans & Salary Advances (with Cap & Balance limits) ---
+      const empLoans = loans.filter(l => l.employeeId?.toString() === emp._id?.toString());
+      let loanDeduction = 0;
+      let advanceDeduction = 0;
+
+      for (const loan of empLoans) {
+        // Enforce Egypt Labor Law: total loan/advance deductions cannot exceed 50% of basic salary
+        const maxAllowedTotalDeduction = Math.round(baseSalary * 0.5);
+        const currentDeducted = loanDeduction + advanceDeduction;
+        const remainingCap = Math.max(0, maxAllowedTotalDeduction - currentDeducted);
+
+        if (remainingCap <= 0) {
+          continue;
+        }
+
+        // Capped installment is the minimum of monthly installment, remaining balance, and remaining cap
+        const installment = Math.min(loan.monthlyInstallment, loan.remainingBalance, remainingCap);
+
+        if (loan.loanType === 'Salary Advance') {
+          advanceDeduction += installment;
+        } else {
+          loanDeduction += installment;
+        }
+      }
+
+      // --- Contract Custom Salary Components ---
+      let dynamicTransport = 0;
+      let dynamicMeal = 0;
+      let dynamicMobile = 0;
+      let dynamicHousing = 0;
+      let dynamicFuel = 0;
+      let dynamicOtherBonus = 0;
+
+      let pension = 0;
+      let otherDeductions = 0;
+
+      if (c.salaryComponents && c.salaryComponents.length > 0) {
+        for (const comp of c.salaryComponents) {
+          let value = comp.value || 0;
+          if (comp.valueType === 'Percentage') {
+            value = Math.round(baseSalary * (value / 100));
+          }
+
+          // Scale by KPI performance if linked
+          if (comp.kpiLinked && avgScore !== null) {
+            value = Math.round(value * (avgScore / 100));
+          }
+
+          if (comp.type === 'Earning') {
+            const labelLower = comp.label.toLowerCase();
+            if (labelLower.includes('transport')) {
+              dynamicTransport += value;
+            } else if (labelLower.includes('meal')) {
+              dynamicMeal += value;
+            } else if (labelLower.includes('mobile')) {
+              dynamicMobile += value;
+            } else if (labelLower.includes('housing')) {
+              dynamicHousing += value;
+            } else if (labelLower.includes('fuel')) {
+              dynamicFuel += value;
+            } else {
+              dynamicOtherBonus += value;
+            }
+          } else if (comp.type === 'Deduction') {
+            const labelLower = comp.label.toLowerCase();
+            if (labelLower.includes('pension')) {
+              pension += value;
+            } else {
+              otherDeductions += value;
+            }
+          }
+        }
+      }
+
+      // Tier-based defaults
+      let transportAllowance = baseSalary >= 10000 ? 500  : 300;
+      let mealAllowance      = baseSalary >= 10000 ? 300  : 150;
+      let mobileAllowance    = 200;
+      let housingAllowance   = baseSalary >= 20000 ? 2000 : 0;
+      let fuelAllowance      = emp.role?.includes('Manager') || emp.role?.includes('Director') ? 1000 : 0;
+
+      // Apply overrides from custom salary components if present
+      if (dynamicTransport > 0) transportAllowance = dynamicTransport;
+      if (dynamicMeal > 0) mealAllowance = dynamicMeal;
+      if (dynamicMobile > 0) mobileAllowance = dynamicMobile;
+      if (dynamicHousing > 0) housingAllowance = dynamicHousing;
+      if (dynamicFuel > 0) fuelAllowance = dynamicFuel;
 
       const totalAllowancesEmp = transportAllowance + mealAllowance + mobileAllowance + housingAllowance + fuelAllowance;
+      const totalBonusesEmp = dynamicOtherBonus;
 
       // --- Leave without pay ---
       const empLeaves = leaveRecords.filter(l => l.employeeId?.toString() === emp._id?.toString());
@@ -211,15 +302,11 @@ exports.generatePayrollRun = async (req, res) => {
       const dailyRate   = baseSalary / daysInMonth;
       const lwpDeduction = Math.round(lwpDays * dailyRate);
 
-      // --- Loan deduction ---
-      const empLoan = loans.find(l => l.employeeId?.toString() === emp._id?.toString());
-      const loanDeduction = empLoan ? empLoan.monthlyInstallment : 0;
-
       // --- Gross & Tax ---
-      const grossEarnings = baseSalary + totalAllowancesEmp;
+      const grossEarnings = baseSalary + totalAllowancesEmp + totalBonusesEmp;
       const incomeTax     = calcIncomeTax(grossEarnings * 12);
       const socialIns     = calcSocialInsurance(baseSalary);
-      const totalDeds     = incomeTax + socialIns + loanDeduction + lwpDeduction;
+      const totalDeds     = incomeTax + socialIns + loanDeduction + advanceDeduction + lwpDeduction + pension + otherDeductions;
       const netSalary     = Math.max(0, grossEarnings - totalDeds);
 
       entries.push({
@@ -232,17 +319,21 @@ exports.generatePayrollRun = async (req, res) => {
         mobileAllowance,
         housingAllowance,
         fuelAllowance,
+        otherBonus:        dynamicOtherBonus,
         incomeTax,
-        socialInsurance: socialIns,
+        socialInsurance:   socialIns,
+        pension,
         loanDeduction,
+        advanceDeduction,
         leaveWithoutPayDays: lwpDays,
-        leaveWithoutPay: lwpDeduction,
+        leaveWithoutPay:   lwpDeduction,
+        otherDeductions,
         grossEarnings,
-        totalAllowances: totalAllowancesEmp,
-        totalBonuses: 0,
-        totalDeductions: totalDeds,
+        totalAllowances:   totalAllowancesEmp,
+        totalBonuses:      dynamicOtherBonus,
+        totalDeductions:   totalDeds,
         netSalary,
-        status: 'Pending',
+        status:            'Pending',
       });
 
       totalGross      += grossEarnings;
@@ -250,13 +341,16 @@ exports.generatePayrollRun = async (req, res) => {
       totalTax        += incomeTax;
       totalDeductions += totalDeds;
       totalAllowances += totalAllowancesEmp;
+      totalBonuses    += dynamicOtherBonus;
 
-      // --- Anomaly detection ---
+      // --- Anomaly detection & Compliance Alerts ---
       if (netSalary <= 0) {
         alerts.push({ type: 'Anomaly', severity: 'Critical', employeeId: emp._id, runId: run._id, period, title: 'Zero or Negative Net Salary', message: `${emp.firstName} ${emp.lastName} has zero or negative net salary (${netSalary} EGP). Review deductions.`, confidenceScore: 99, suggestedAction: 'Review loan and LWP deductions immediately.', estimatedImpact: Math.abs(netSalary) });
       }
-      if (loanDeduction > baseSalary * 0.5) {
-        alerts.push({ type: 'Compliance', severity: 'High', employeeId: emp._id, runId: run._id, period, title: 'Loan Deduction Exceeds 50% of Salary', message: `Loan installment (${loanDeduction} EGP) exceeds 50% of base salary for ${emp.firstName} ${emp.lastName}.`, confidenceScore: 95, policyRef: 'Egyptian Labor Law Art. 40', suggestedAction: 'Restructure loan repayment schedule.' });
+      // Check if original loan request exceeded 50% basic salary cap, or if we actually capped it
+      const originalTotalInstallment = empLoans.reduce((sum, l) => sum + l.monthlyInstallment, 0);
+      if (originalTotalInstallment > baseSalary * 0.5) {
+        alerts.push({ type: 'Compliance', severity: 'High', employeeId: emp._id, runId: run._id, period, title: 'Loan installment exceeds 50% limit (Capped)', message: `Loan installment sum of (${originalTotalInstallment} EGP) exceeds 50% of base salary. Capped to (${loanDeduction + advanceDeduction} EGP).`, confidenceScore: 95, policyRef: 'Egyptian Labor Law Art. 40', suggestedAction: 'Restructure loan repayment schedule.' });
       }
       if (!emp.email) {
         alerts.push({ type: 'Anomaly', severity: 'Medium', employeeId: emp._id, runId: run._id, period, title: 'Missing Bank/Contact Information', message: `Employee ${emp.firstName} ${emp.lastName} has no email/bank data on record.`, confidenceScore: 100, suggestedAction: 'Request employee to update bank account details.', estimatedImpact: netSalary });
@@ -428,6 +522,18 @@ exports.releasePayrollRun = async (req, res) => {
         entry.paymentRef  = result.gatewayRefId || orderId;
         entry.failureReason = '';
         paidCount++;
+
+        // Notify the employee that their payslip is now available.
+        try {
+          await notifyEmployee({
+            senderId: req.user._id,
+            recipientId: entry.employeeId._id,
+            subject: `Your ${run.type === 'Bonus' ? 'bonus' : 'salary'} for ${run.period} has been paid`,
+            body: `Dear ${employeeName},\n\nYour ${run.type === 'Bonus' ? 'bonus' : 'salary'} for ${run.period} has been released.\n\nNet amount: ${entry.netSalary.toLocaleString()} EGP${entry.paymentRef ? `\nReference: ${entry.paymentRef}` : ''}\n\nYou can view and download your payslip under Employee Self-Service > My Payroll > Payslips.\n\nBest regards,\nPayroll Team`,
+          });
+        } catch (notifyErr) {
+          console.error('Failed to notify employee of payslip:', notifyErr.message);
+        }
       } catch (err) {
         // Failure — log it, mark entry failed
         await PaymentTransaction.findByIdAndUpdate(txn._id, {
@@ -444,15 +550,29 @@ exports.releasePayrollRun = async (req, res) => {
 
     // Process loan installments for paid salary entries
     if (run.type !== 'Bonus') {
-      const paidEntries = entries.filter(e => e.status === 'Paid' && e.loanDeduction > 0);
+      const paidEntries = entries.filter(e => e.status === 'Paid' && (e.loanDeduction > 0 || e.advanceDeduction > 0));
       for (const entry of paidEntries) {
-        const loan = await EmployeeLoan.findOne({ employeeId: entry.employeeId._id, status: 'Active' });
-        if (loan) {
-          const newBalance = Math.max(0, loan.remainingBalance - entry.loanDeduction);
-          loan.installments.push({ period: entry.period, amount: entry.loanDeduction, balanceAfter: newBalance });
-          loan.remainingBalance = newBalance;
-          if (newBalance === 0) loan.status = 'Settled';
-          await loan.save();
+        const activeLoans = await EmployeeLoan.find({ employeeId: entry.employeeId._id, status: 'Active' });
+        let remainingLoanDeduction = entry.loanDeduction;
+        let remainingAdvanceDeduction = entry.advanceDeduction;
+
+        for (const loan of activeLoans) {
+          let deduction = 0;
+          if (loan.loanType === 'Salary Advance' && remainingAdvanceDeduction > 0) {
+            deduction = Math.min(loan.remainingBalance, remainingAdvanceDeduction);
+            remainingAdvanceDeduction -= deduction;
+          } else if (loan.loanType !== 'Salary Advance' && remainingLoanDeduction > 0) {
+            deduction = Math.min(loan.remainingBalance, remainingLoanDeduction);
+            remainingLoanDeduction -= deduction;
+          }
+
+          if (deduction > 0) {
+            const newBalance = Math.max(0, loan.remainingBalance - deduction);
+            loan.installments.push({ period: entry.period, amount: deduction, balanceAfter: newBalance });
+            loan.remainingBalance = newBalance;
+            if (newBalance === 0) loan.status = 'Settled';
+            await loan.save();
+          }
         }
       }
     }

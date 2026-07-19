@@ -121,6 +121,13 @@ exports.processPublicPayment = async (req, res) => {
     offer.recordLocator = booking.recordLocator;
     await offer.save();
 
+    // Auto-convert the Lead to 'Converted' now that payment is confirmed.
+    try {
+      await Lead.findByIdAndUpdate(offer.lead, { status: 'Converted' });
+    } catch (leadErr) {
+      console.error('Failed to auto-convert lead status:', leadErr.message);
+    }
+
     await OfferHistory.create({
       offerId: offer._id,
       action: 'paid',
