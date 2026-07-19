@@ -11,3 +11,10 @@ uploads/
 # Build output
 dist/
 build/
+
+# Vercel build output
+.vercel/
+# Lockfiles (let Vercel resolve deps)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

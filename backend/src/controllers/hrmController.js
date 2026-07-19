@@ -8,7 +8,6 @@ const JobVacancy = require('../models/JobVacancy');
 const PayrollEntry = require('../models/PayrollEntry');
 const PayrollAlert = require('../models/PayrollAlert');
 const EmployeeLoan = require('../models/EmployeeLoan');
-const { put } = require('@vercel/blob');
 const Candidate = require('../models/Candidate');
 const Partnership = require('../models/Partnership');
 const Email = require('../models/Email');
@@ -154,6 +153,7 @@ exports.uploadSignedContract = async (req, res) => {
     if (!contract) return res.status(404).json({ message: 'Contract not found. Create a contract first.' });
     
     const uniqueFilename = `gov-docs/signed-contract-${Date.now()}-${req.file.originalname}`;
+    const { put } = require('@vercel/blob');
     const blob = await put(uniqueFilename, req.file.buffer, {
       access: 'public',
       contentType: req.file.mimetype,
@@ -364,6 +364,7 @@ exports.uploadGovDocFile = async (req, res) => {
     }
 
     const uniqueFilename = `gov-docs/govdoc-${Date.now()}-${req.file.originalname}`;
+    const { put } = require('@vercel/blob');
     const blob = await put(uniqueFilename, req.file.buffer, {
       access: 'public',
       contentType: req.file.mimetype,

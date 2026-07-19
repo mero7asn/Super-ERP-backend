@@ -5,7 +5,6 @@ const Lead = require('../models/Lead');
 const User = require('../models/User');
 const Email = require('../models/Email');
 const { sendEmail, getGlobalEmailConfig } = require('../services/emailService');
-const { put } = require('@vercel/blob');
 const { buildPaymentLink } = require('./paymentController');
 
 const TRACKED_FIELDS = ['title', 'description', 'offerType', 'price', 'validUntil', 'notes'];
@@ -800,6 +799,7 @@ exports.uploadOfferImage = async (req, res) => {
     }
 
     const uniqueFilename = `offers/offer-${Date.now()}-${req.file.originalname}`;
+    const { put } = require('@vercel/blob');
     const blob = await put(uniqueFilename, req.file.buffer, {
       access: 'public',
       contentType: req.file.mimetype,

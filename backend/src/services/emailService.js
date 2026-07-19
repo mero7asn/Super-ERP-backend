@@ -1,8 +1,8 @@
-const nodemailer = require('nodemailer');
 const SystemSetting = require('../models/SystemSetting');
 const { decrypt } = require('./encryption');
 
 const createTransporter = async (user, globalConfig = null) => {
+  const nodemailer = require('nodemailer');
   let host, port, secure, authUser, authPass, fallbackName;
 
   if (user && user.smtpHost && user.smtpUser) {
