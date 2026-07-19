@@ -3,14 +3,14 @@
   "framework": null,
   "builds": [
     {
-      "src": "src/index.js",
+      "src": "src/__diag.js",
       "use": "@vercel/node"
     }
   ],
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/src/index.js"
+      "destination": "/src/__diag.js"
     }
   ]
 }
