@@ -337,6 +337,7 @@ exports.deleteOffer = async (req, res) => {
 // @route   POST /api/offers/:id/send
 // @access  Private
 exports.sendOffer = async (req, res) => {
+  let step = 'init';
   try {
     const { method } = req.body;
 
@@ -344,6 +345,7 @@ exports.sendOffer = async (req, res) => {
       return res.status(400).json({ message: 'Invalid send method. Use Email, SMS, or Both.' });
     }
 
+    step = 'load-offer';
     const offer = await Offer.findById(req.params.id)
       .populate('lead')
       .populate('createdBy', 'firstName lastName');
@@ -371,7 +373,9 @@ exports.sendOffer = async (req, res) => {
       ? `${offer.createdBy.firstName || ''} ${offer.createdBy.lastName || ''}`.trim() || 'Agent'
       : 'Agent';
     const leadName = offer.lead.name || 'Customer';
+    const offerType = offer.offerType || 'Service';
 
+    step = 'build-content';
     const emailSubject = `New Offer: ${title}`;
 
     if (!offer.paymentToken) {
@@ -466,6 +470,7 @@ exports.sendOffer = async (req, res) => {
 
     let globalConfig = null;
     if (method === 'Email' || method === 'Both') {
+      step = 'load-global-email-config';
       globalConfig = await getGlobalEmailConfig();
     }
 
@@ -474,19 +479,30 @@ exports.sendOffer = async (req, res) => {
     let emailDoc = null;
 
     if (method === 'Email' || method === 'Both') {
-      emailDoc = await Email.create({
-        senderId: req.user._id,
-        recipientId: offer.lead._id,
-        subject: emailSubject,
-        body: textBody,
-        htmlBody: htmlBody,
-        fromEmail: req.user.smtpUser || req.user.email,
-        toEmail: offer.lead.email,
-        status: 'sent',
-        offerId: offer._id,
-        offerVersion: offer.version
-      });
+      step = 'create-email-record';
+      try {
+        emailDoc = await Email.create({
+          senderId: req.user._id,
+          recipientId: offer.lead._id,
+          subject: emailSubject,
+          body: textBody,
+          htmlBody: htmlBody,
+          fromEmail: req.user.smtpUser || req.user.email,
+          toEmail: offer.lead.email,
+          status: 'sent',
+          offerId: offer._id,
+          offerVersion: offer.version
+        });
+      } catch (emailCreateErr) {
+        console.error('[OfferSend] Email.create failed:', emailCreateErr);
+        return res.status(500).json({
+          message: 'Failed to record email in database',
+          error: emailCreateErr.message,
+          step: 'create-email-record'
+        });
+      }
 
+      step = 'send-email-smtp';
       try {
         await sendEmail(req.user, {
           to: offer.lead.email,
@@ -521,47 +537,78 @@ exports.sendOffer = async (req, res) => {
       }
     }
 
-    const prevVersionSnapshot = await OfferVersion.findOne({ offerId: offer._id, version: offer.version });
-    const changeSummary = prevVersionSnapshot ? prevVersionSnapshot.changeSummary : '';
+    step = 'version-snapshot';
+    try {
+      const prevVersionSnapshot = await OfferVersion.findOne({ offerId: offer._id, version: offer.version });
+      const changeSummary = prevVersionSnapshot ? prevVersionSnapshot.changeSummary : '';
 
-    if (emailStatus === 'sent') {
-      await createVersionSnapshot(offer, {
-        statusAtSnapshot: 'Sent',
-        requirement: offer.revisionNote || '',
-        changeSummary,
-        emailRef: emailDoc ? emailDoc._id : null,
-        createdBy: req.user._id
+      if (emailStatus === 'sent') {
+        await createVersionSnapshot(offer, {
+          statusAtSnapshot: 'Sent',
+          requirement: offer.revisionNote || '',
+          changeSummary,
+          emailRef: emailDoc ? emailDoc._id : null,
+          createdBy: req.user._id
+        });
+      }
+    } catch (versionErr) {
+      console.error('[OfferSend] Version snapshot failed:', versionErr);
+      return res.status(500).json({
+        message: 'Failed to create version snapshot',
+        error: versionErr.message,
+        step: 'version-snapshot'
       });
     }
 
-    offer.status = 'Sent';
-    offer.sentAt = new Date();
-    offer.sentVia = method;
-    await offer.save();
+    step = 'update-offer-status';
+    try {
+      offer.status = 'Sent';
+      offer.sentAt = new Date();
+      offer.sentVia = method;
+      await offer.save();
+    } catch (saveErr) {
+      console.error('[OfferSend] Offer save failed:', saveErr);
+      return res.status(500).json({
+        message: 'Failed to update offer status',
+        error: saveErr.message,
+        step: 'update-offer-status'
+      });
+    }
 
-    const sentEmailId = emailDoc ? emailDoc._id : null;
-    await OfferHistory.create({
-      offerId: offer._id,
-      action: emailStatus === 'failed' ? 'sent' : 'version_sent',
-      performedBy: req.user._id,
-      details: emailStatus === 'failed'
-        ? `Send via ${method} failed (offer not updated)`
-        : `Offer sent via ${method}`,
-      version: offer.version,
-      versionRef: sentEmailId,
-      metadata: { method, sentVia: method, emailStatus, providerError }
-    });
+    step = 'create-history';
+    try {
+      const sentEmailId = emailDoc ? emailDoc._id : null;
+      await OfferHistory.create({
+        offerId: offer._id,
+        action: emailStatus === 'failed' ? 'sent' : 'version_sent',
+        performedBy: req.user._id,
+        details: emailStatus === 'failed'
+          ? `Send via ${method} failed (offer not updated)`
+          : `Offer sent via ${method}`,
+        version: offer.version,
+        versionRef: sentEmailId,
+        metadata: { method, sentVia: method, emailStatus, providerError }
+      });
+    } catch (historyErr) {
+      console.error('[OfferSend] History create failed:', historyErr);
+      return res.status(500).json({
+        message: 'Failed to create offer history',
+        error: historyErr.message,
+        step: 'create-history'
+      });
+    }
 
     res.json({ success: true, message: `Offer sent via ${method}`, data: offer });
   } catch (error) {
     console.error('[OfferSend] Failed:', {
+      step,
       offerId: req.params.id,
       method: req.body?.method,
       userId: req.user?._id,
       error: error.message,
       stack: error.stack,
     });
-    res.status(500).json({ message: 'Failed to send offer', error: error.message });
+    res.status(500).json({ message: 'Failed to send offer', error: error.message, step });
   }
 };
 
