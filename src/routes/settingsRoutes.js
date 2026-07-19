@@ -7,6 +7,8 @@ const {
   getEmailSettings,
   updateEmailSettings,
   testEmailSettings,
+  getErpConfig,
+  updateErpConfig,
 } = require('../controllers/settingsController');
 
 router.get('/business-model', protect, getBusinessModel);
@@ -15,5 +17,8 @@ router.put('/business-model', protect, updateBusinessModel);
 router.get('/email', protect, getEmailSettings);
 router.put('/email', protect, updateEmailSettings);
 router.post('/email/test', protect, testEmailSettings);
+
+router.get('/erp', protect, getErpConfig);
+router.put('/erp', protect, updateErpConfig);
 
 module.exports = router;

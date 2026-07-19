@@ -102,6 +102,42 @@ exports.updateEmailSettings = async (req, res) => {
   }
 };
 
+// @desc    Get the ERP integration config (base URL for external departments)
+// @route   GET /api/settings/erp
+// @access  Private (Super Admin only)
+exports.getErpConfig = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+    const setting = await SystemSetting.findOne({ key: 'erp' });
+    res.json({ success: true, data: setting?.value || { baseUrl: '' } });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Save the ERP integration config
+// @route   PUT /api/settings/erp
+// @access  Private (Super Admin only)
+exports.updateErpConfig = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+    const { baseUrl } = req.body;
+    const value = { baseUrl: (baseUrl || '').trim() };
+    await SystemSetting.findOneAndUpdate(
+      { key: 'erp' },
+      { key: 'erp', value, updatedBy: req.user._id },
+      { new: true, upsert: true }
+    );
+    res.json({ success: true, message: 'ERP integration settings saved.', data: value });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Test the global SMTP connection by sending a probe email
 // @route   POST /api/settings/email/test
 // @access  Private (Super Admin only)
