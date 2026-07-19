@@ -185,7 +185,7 @@ exports.generatePayrollRun = async (req, res) => {
       achievementDate: { $gte: periodStart, $lte: periodEnd }
     });
     const alerts  = [];
-    let totalGross = 0, totalTax = 0, totalDeductions = 0, totalBonuses = 0, totalAllowances = 0, totalNet = 0;
+    let totalGross = 0, totalTax = 0, totalDeductions = 0, totalBonuses = 0, totalAllowances = 0;
 
     for (const c of contracts) {
       const emp = c.employeeId;
