@@ -8,15 +8,49 @@ const connectDB = require('./config/db');
 // Load env vars
 dotenv.config();
 
-// Connect to database
-connectDB();
-
 const app = express();
+
+// Manual OPTIONS preflight handler registered FIRST so it returns 204 with
+// CORS headers without depending on the cors package for preflight.
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+    );
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization'
+    );
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+// Connect to database (truly non-blocking on failure so CORS preflight still works)
+let dbConnected = false;
+try {
+  const dbPromise = connectDB();
+  if (dbPromise && typeof dbPromise.then === 'function') {
+    dbPromise
+      .then(connected => {
+        dbConnected = Boolean(connected);
+      })
+      .catch(err => {
+        console.error('Unexpected error during DB connection:', err);
+      });
+  }
+} catch (err) {
+  console.error('Unexpected error initiating DB connection:', err);
+}
 
 // Body parser
 app.use(express.json());
 
-// Enable CORS (explicit config so preflight OPTIONS is answered with headers)
+// Enable CORS for normal (non-preflight) requests
 const corsOptions = {
   origin: true,
   credentials: true,
@@ -28,6 +62,14 @@ app.options('/*splat', cors(corsOptions));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
+
+// Health check / DB availability gate (preflight already handled above)
+app.use((req, res, next) => {
+  if (!dbConnected) {
+    return res.status(503).json({ message: 'Service unavailable: database connection failed' });
+  }
+  next();
+});
 
 // Mount routers
 const authRoutes = require('./routes/authRoutes');
@@ -44,6 +86,7 @@ const essRoutes = require('./routes/essRoutes');
 const gatewayRoutes = require('./routes/gatewayRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -59,6 +102,7 @@ app.use('/api/ess', essRoutes);
 app.use('/api/gateway', gatewayRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/public/pay', paymentRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Base route
 app.get('/', (req, res) => {
@@ -128,18 +172,46 @@ const runStartupTasks = () => {
       }
     });
     console.log('[Cron] Monthly schedule reminder job registered (25th of each month, 9:00 AM)');
+
+    // Hourly offer expiry: mark Sent/Viewed offers past their validUntil as Expired
+    cron.schedule('0 * * * *', async () => {
+      try {
+        const Offer = require('./models/Offer');
+        const now = new Date();
+        const result = await Offer.updateMany(
+          {
+            status: { $in: ['Sent', 'Viewed'] },
+            validUntil: { $lt: now }
+          },
+          { $set: { status: 'Expired' } }
+        );
+        if (result.modifiedCount > 0) {
+          console.log(`[Cron] Expired ${result.modifiedCount} overdue offer(s)`);
+        }
+      } catch (err) {
+        console.error('[Cron] Offer expiry error:', err.message);
+      }
+    });
+    console.log('[Cron] Hourly offer expiry job registered');
   } catch (err) {
     console.error('[Startup] Error running startup tasks:', err.message);
   }
 };
-runStartupTasks();
+try {
+  runStartupTasks();
+} catch (err) {
+  console.error('[Startup] Unexpected error invoking startup tasks:', err.message);
+}
 
 // Export for serverless (Vercel @vercel/node). On Vercel the module is invoked
 // per-request; app.listen is not used. Keep listen only for local `npm start`.
 if (require.main === module) {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  try {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (err) {
+    console.error('[Startup] Error starting local server:', err.message);
+  }
 }
 
 module.exports = app;
-
