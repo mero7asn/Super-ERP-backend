@@ -8,8 +8,13 @@ const connectDB = require('./config/db');
 // Load env vars
 dotenv.config();
 
-// Connect to database
-connectDB();
+// Connect to database (non-blocking on failure so CORS preflight still works)
+let dbConnected = false;
+connectDB().then(connected => {
+  dbConnected = connected;
+}).catch(err => {
+  console.error('Unexpected error during DB connection:', err);
+});
 
 const app = express();
 
@@ -28,6 +33,17 @@ app.options('/*splat', cors(corsOptions));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
+
+// Health check for DB connectivity (allows CORS preflight to pass even if DB is down)
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  if (!dbConnected) {
+    return res.status(503).json({ message: 'Service unavailable: database connection failed' });
+  }
+  next();
+});
 
 // Mount routers
 const authRoutes = require('./routes/authRoutes');
