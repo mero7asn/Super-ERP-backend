@@ -211,3 +211,7 @@ Super CRM Team
     res.status(500).json({ message: 'Payment failed', error: error.message });
   }
 };
+
+// Exported so other controllers (e.g. offerController) can build the public
+// payment link without duplicating the CLIENT_URL logic.
+module.exports.buildPaymentLink = buildPaymentLink;
