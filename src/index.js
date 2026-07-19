@@ -20,7 +20,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.options('*', cors());
+app.options('/*splat', cors());
 
 // Belt-and-suspenders manual CORS preflight handler. This guarantees the
 // Access-Control-Allow-* headers are returned on OPTIONS even if the `cors`
