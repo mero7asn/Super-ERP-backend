@@ -129,20 +129,33 @@ exports.createOffer = async (req, res) => {
       notes: notes ? String(notes).trim() : ''
     };
 
-    // Some deployment DBs have a non-sparse unique index on `recordLocator` which
-    // causes inserts to fail when the field is null. Retry creation with a
-    // generated locator if we get a duplicate-key error on that index.
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // Some deployed DBs incorrectly have non-sparse unique indexes on nullable
+    // fields (recordLocator, bookingRef, paymentToken). To be resilient, retry
+    // creation up to several times, regenerating those fields when we hit a
+    // duplicate-key error on insert.
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        offer = await Offer.create({ ...baseOffer, recordLocator: crypto.randomBytes(6).toString('hex') });
+        const candidate = {
+          ...baseOffer,
+          recordLocator: crypto.randomBytes(6).toString('hex'),
+          bookingRef: crypto.randomBytes(8).toString('hex'),
+          // keep paymentToken null for now; if an existing unique index causes
+          // a collision later, send flow will generate a token as needed.
+        };
+        offer = await Offer.create(candidate);
         break;
       } catch (err) {
-        if (err && err.code === 11000 && /recordLocator/i.test(err.message)) {
-          console.warn('[createOffer] duplicate recordLocator on create, retrying', { attempt });
-          continue; // try again with a different locator
+        if (err && err.code === 11000) {
+          console.warn('[createOffer] duplicate-key on insert, retrying', { attempt, err: err.message });
+          // small delay could help in some environments; continue to retry
+          continue;
         }
         throw err;
       }
+    }
+    if (!offer) {
+      throw new Error('Failed to create offer after multiple attempts due to duplicate-key conflicts');
     }
 
     const populated = await offer.populate('createdBy', 'firstName lastName role');
