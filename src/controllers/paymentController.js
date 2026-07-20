@@ -207,7 +207,7 @@ ${branding.companyName || 'Super CRM'}
               <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Amount Paid <strong style="color:#334155;">$${Number(offer.price).toLocaleString()}</strong> via ${method}</p>
             </td></tr>
           </table>
-          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>Super CRM Team</strong></p>
+          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${branding.companyName || 'Super CRM'}</strong></p>
         </td></tr>
       </table>
     </td></tr>

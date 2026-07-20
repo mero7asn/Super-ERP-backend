@@ -144,6 +144,40 @@ exports.updateBrandingConfig = async (req, res) => {
   }
 };
 
+// @desc    Upload company logo
+// @route   POST /api/settings/branding/logo
+// @access  Private (Super Admin only)
+exports.uploadBrandingLogo = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No logo file uploaded.' });
+    }
+
+    const logoUrl = `/uploads/branding/${req.file.filename}`;
+
+    const existing = await SystemSetting.findOne({ key: 'branding' });
+    const currentValue = existing?.value || {};
+    const value = {
+      companyName: currentValue.companyName || 'Super CRM',
+      companyLogo: logoUrl
+    };
+
+    const setting = await SystemSetting.findOneAndUpdate(
+      { key: 'branding' },
+      { key: 'branding', value, updatedBy: req.user._id },
+      { new: true, upsert: true }
+    );
+
+    res.json({ success: true, message: 'Logo uploaded successfully.', data: setting.value });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to upload logo', error: error.message });
+  }
+};
+
 // @desc    Get the ERP integration config (base URL for external departments)
 // @route   GET /api/settings/erp
 // @access  Private (Super Admin only)

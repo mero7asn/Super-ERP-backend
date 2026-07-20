@@ -43,14 +43,14 @@ const sendEmail = async (user, options, globalConfig = null) => {
     throw new Error('SMTP is not configured for this user and no global SMTP relay is available');
   }
 
-  const fromName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Super CRM User';
+  const branding = await getBrandingConfig();
+  const fromName = branding.companyName || 'Super CRM';
   let fromAddress;
   let replyTo;
 
   if (user.smtpHost && user.smtpUser) {
     fromAddress = user.smtpUser;
   } else if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser) {
-    // System uses the email the user logged in with
     fromAddress = user.email;
     replyTo = user.email;
   } else {
@@ -102,6 +102,16 @@ const getGlobalEmailConfig = async () => {
   }
 };
 
+const getBrandingConfig = async () => {
+  try {
+    const setting = await SystemSetting.findOne({ key: 'branding' });
+    return setting?.value || { companyName: 'Super CRM', companyLogo: '' };
+  } catch (error) {
+    console.error('Failed to load branding settings:', error);
+    return { companyName: 'Super CRM', companyLogo: '' };
+  }
+};
+
 // Send an email without an authenticated user (e.g. public payment confirmations).
 // Uses the global SMTP relay; falls back to the provided fromAddress.
 const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) => {
@@ -109,6 +119,12 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) 
   if (!cfg || !cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
     throw new Error('Global SMTP is not configured; cannot send system email.');
   }
+
+  const branding = fromName ? null : await getBrandingConfig();
+  const fromLabel = fromName ? fromName.trim() : (branding?.companyName || 'Super CRM');
+  const fromHeader = fromAddress
+    ? `"${fromLabel}" <${fromAddress}>`
+    : `"${fromLabel}" <${cfg.smtpUser}>`;
 
   const nodemailer = require('nodemailer');
   const transport = nodemailer.createTransport({
@@ -118,11 +134,6 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) 
     auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
     family: 4,
   });
-
-  const fromLabel = fromName ? fromName.trim() : 'Super CRM';
-  const fromHeader = fromAddress
-    ? `"${fromLabel}" <${fromAddress}>`
-    : `"${fromLabel}" <${cfg.smtpUser}>`;
 
   const info = await transport.sendMail({
     from: fromHeader,
@@ -135,4 +146,4 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) 
   return info;
 };
 
-module.exports = { sendEmail, verifyTransporter, createTransporter, getGlobalEmailConfig, sendRawEmail };
+module.exports = { sendEmail, verifyTransporter, createTransporter, getGlobalEmailConfig, getBrandingConfig, sendRawEmail };
