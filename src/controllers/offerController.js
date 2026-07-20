@@ -125,7 +125,10 @@ exports.createOffer = async (req, res) => {
       validUntil: parsedValidUntil,
       offerType: offerType || 'Service',
       catalogProduct: parsedCatalogProduct,
-      notes: notes ? String(notes).trim() : ''
+      notes: notes ? String(notes).trim() : '',
+      // Ensure a non-null, unique recordLocator at creation time to avoid
+      // duplicate-null unique index errors on deployments with a stale index.
+      recordLocator: crypto.randomBytes(6).toString('hex')
     });
 
     const populated = await offer.populate('createdBy', 'firstName lastName role');
