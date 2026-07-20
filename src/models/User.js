@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { decrypt } = require('../services/encryption');
 
 const userSchema = new mongoose.Schema({
   firstName: {
@@ -161,7 +162,7 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 userSchema.methods.getSmtpPass = function() {
-  return this.smtpPass;
+  return decrypt(this.smtpPass);
 };
 
 // Encrypt password using bcrypt before saving
