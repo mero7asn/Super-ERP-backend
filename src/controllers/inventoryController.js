@@ -229,7 +229,7 @@ exports.postGoodsReceipt = async (req, res) => {
       });
 
       await updateStockLevel(stock, line.acceptedQty, 'GOODS_RECEIPT');
-      if (line.lotNumber) await updateLotQuantity(null, line.acceptedQty);
+      if (line.lotNumber) await updateLotQuantity(null, line.acceptedQty, line.item, receiving.warehouse._id, receiving.subinventory, line.lotNumber);
       grTxnIds.push(txn._id);
     }
 
@@ -402,7 +402,7 @@ exports.postInventoryAdjustment = async (req, res) => {
     });
 
     await updateStockLevel(stock, adjustment.varianceQuantity, 'ADJUSTMENT');
-    if (adjustment.lotNumber) await updateLotQuantity(null, adjustment.varianceQuantity);
+    if (adjustment.lotNumber) await updateLotQuantity(null, adjustment.varianceQuantity, adjustment.item, adjustment.warehouse, adjustment.subinventory, adjustment.lotNumber);
 
     adjustment.status = 'Posted';
     adjustment.stockTransactionId = txn._id;
@@ -651,5 +651,198 @@ exports.rejectAdjustment = async (req, res) => {
     res.json({ success: true, message: 'Adjustment rejected.', data: adjustment });
   } catch (error) {
     res.status(500).json({ message: 'Failed to reject adjustment', error: error.message });
+  }
+};
+
+exports.getReceivingOrders = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { warehouse, status } = req.query;
+    const query = {};
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+
+    const orders = await ReceivingOrder.find(query)
+      .populate('warehouse', 'code name')
+      .populate('receivedBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: orders });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getShipments = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { warehouse, status } = req.query;
+    const query = {};
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+
+    const shipments = await Shipment.find(query)
+      .populate('warehouse', 'code name')
+      .populate('shippedBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: shipments });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.createTransfer = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const {
+      item, quantity, unitOfMeasure,
+      fromWarehouse, fromSubinventory, fromLocator, fromLotNumber, fromSerialNumber,
+      toWarehouse, toSubinventory, toLocator, toLotNumber, toSerialNumber,
+      transferType, shipmentRef, carrier, trackingNumber, expectedArrival, remarks
+    } = req.body;
+
+    if (!item || !quantity || !fromWarehouse || !toWarehouse || !fromSubinventory || !toSubinventory) {
+      return res.status(400).json({ message: 'Item, quantity, warehouses, and subinventories are required.' });
+    }
+
+    if (Number(quantity) <= 0) {
+      return res.status(400).json({ message: 'Quantity must be greater than zero.' });
+    }
+
+    const transfer = await StockTransfer.create({
+      transferId: generateId('TRF'),
+      item,
+      quantity: Number(quantity),
+      unitOfMeasure: unitOfMeasure || 'EA',
+      fromWarehouse, fromSubinventory, fromLocator: fromLocator || '', fromLotNumber: fromLotNumber || '', fromSerialNumber: fromSerialNumber || '',
+      toWarehouse, toSubinventory, toLocator: toLocator || '', toLotNumber: toLotNumber || '', toSerialNumber: toSerialNumber || '',
+      transferType: transferType || 'BIN_TRANSFER',
+      status: 'Draft',
+      shipmentRef: shipmentRef || '',
+      carrier: carrier || '',
+      trackingNumber: trackingNumber || '',
+      expectedArrival: expectedArrival || null,
+      remarks: remarks || '',
+      requestedBy: req.user._id
+    });
+
+    const populated = await transfer.populate('fromWarehouse', 'code name').populate('toWarehouse', 'code name').populate('item', 'sku name');
+    res.status(201).json({ success: true, data: populated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create transfer', error: error.message });
+  }
+};
+
+exports.getTransfers = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { item, fromWarehouse, toWarehouse, status } = req.query;
+    const query = {};
+    if (item) query.item = item;
+    if (fromWarehouse) query.fromWarehouse = fromWarehouse;
+    if (toWarehouse) query.toWarehouse = toWarehouse;
+    if (status) query.status = status;
+
+    const transfers = await StockTransfer.find(query)
+      .populate('item', 'sku name')
+      .populate('fromWarehouse', 'code name')
+      .populate('toWarehouse', 'code name')
+      .populate('requestedBy', 'firstName lastName')
+      .populate('processedBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: transfers });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.createAdjustment = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const {
+      item, warehouse, subinventory, locator, lotNumber, serialNumber,
+      systemQuantity, countedQuantity, unitCost, reasonCode, reasonDescription,
+      glAccount, costCenter, remarks
+    } = req.body;
+
+    if (!item || !warehouse || !subinventory || systemQuantity === '' || countedQuantity === '' || !reasonCode) {
+      return res.status(400).json({ message: 'Item, warehouse, subinventory, quantities, and reason code are required.' });
+    }
+
+    const variance = Number(countedQuantity) - Number(systemQuantity);
+    const varianceValue = variance * (Number(unitCost) || 0);
+
+    const adjustment = await InventoryAdjustment.create({
+      adjustmentId: generateId('ADJ'),
+      item, warehouse, subinventory: subinventory.toUpperCase(), locator: (locator || '').toUpperCase(),
+      lotNumber: (lotNumber || '').toUpperCase(), serialNumber: (serialNumber || '').toUpperCase(),
+      systemQuantity: Number(systemQuantity), countedQuantity: Number(countedQuantity),
+      varianceQuantity: variance, unitCost: Number(unitCost) || 0, varianceValue,
+      reasonCode, reasonDescription: reasonDescription || '', glAccount: glAccount || '', costCenter: costCenter || '',
+      status: 'Pending', requestedBy: req.user._id, remarks: remarks || ''
+    });
+
+    const populated = await adjustment.populate('item', 'sku name').populate('warehouse', 'code name').populate('requestedBy', 'firstName lastName');
+    res.status(201).json({ success: true, data: populated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create adjustment', error: error.message });
+  }
+};
+
+exports.getAdjustments = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { item, warehouse, status } = req.query;
+    const query = {};
+    if (item) query.item = item;
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+
+    const adjustments = await InventoryAdjustment.find(query)
+      .populate('item', 'sku name')
+      .populate('warehouse', 'code name')
+      .populate('requestedBy', 'firstName lastName')
+      .populate('approvedBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: adjustments });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getCycleCounts = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { warehouse, subinventory, status } = req.query;
+    const query = {};
+    if (warehouse) query.warehouse = warehouse;
+    if (subinventory) query.subinventory = subinventory.toUpperCase();
+    if (status) query.status = status;
+
+    const counts = await CycleCount.find(query)
+      .populate('warehouse', 'code name')
+      .populate('createdBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: counts });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getPhysicalInventories = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { warehouse, subinventory, status } = req.query;
+    const query = {};
+    if (warehouse) query.warehouse = warehouse;
+    if (subinventory) query.subinventory = subinventory.toUpperCase();
+    if (status) query.status = status;
+
+    const inventories = await PhysicalInventory.find(query)
+      .populate('warehouse', 'code name')
+      .populate('createdBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: inventories });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };

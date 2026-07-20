@@ -7,7 +7,9 @@ const {
   createStockTransfer, postInventoryAdjustment, createReceivingOrder, updateReceivingOrder,
   createShipment, createReturnOrder, createCycleCount, createPhysicalInventory,
   getInventoryKPIs, getWarehouses, createWarehouse, updateWarehouse,
-  getLots, getSerials, approveAdjustment, rejectAdjustment
+  getLots, getSerials, approveAdjustment, rejectAdjustment,
+  getReceivingOrders, getShipments, createTransfer, getTransfers,
+  createAdjustment, getAdjustments, getCycleCounts, getPhysicalInventories
 } = require('../controllers/inventoryController');
 
 const INVENTORY_ROLES = [
@@ -44,11 +46,26 @@ router.post('/adjustments/:id/reject', rejectAdjustment);
 
 router.post('/receiving-orders', createReceivingOrder);
 router.put('/receiving-orders/:id', updateReceivingOrder);
+router.get('/receiving-orders', getReceivingOrders);
 
 router.post('/shipments', createShipment);
-router.post('/returns', createReturnOrder);
+router.get('/shipments', getShipments);
+
+router.post('/transfers', createTransfer);
+router.post('/transfers/:id/execute', createStockTransfer);
+router.get('/transfers', getTransfers);
+
+router.post('/adjustments', createAdjustment);
+router.post('/adjustments/:id/post', postInventoryAdjustment);
+router.post('/adjustments/:id/approve', approveAdjustment);
+router.post('/adjustments/:id/reject', rejectAdjustment);
+router.get('/adjustments', getAdjustments);
+
 router.post('/cycle-counts', createCycleCount);
+router.get('/cycle-counts', getCycleCounts);
+
 router.post('/physical-inventories', createPhysicalInventory);
+router.get('/physical-inventories', getPhysicalInventories);
 
 router.get('/warehouses', getWarehouses);
 router.post('/warehouses', createWarehouse);

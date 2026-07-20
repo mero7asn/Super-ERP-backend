@@ -76,6 +76,7 @@ async function updateStockLevel(stockLevel, quantityDelta, type) {
     stockLevel.available = Math.max(0, stockLevel.available - quantityDelta);
     stockLevel.allocated = Math.max(0, stockLevel.allocated - quantityDelta);
   } else if (type === 'TRANSFER') {
+    // Two-sided update: outbound and inbound handled separately by caller
   } else if (type === 'ADJUSTMENT') {
     stockLevel.available = Math.max(0, stockLevel.available + quantityDelta);
   } else if (type === 'CYCLE_COUNT' || type === 'PHYSICAL_INVENTORY') {
@@ -96,12 +97,26 @@ async function updateStockLevel(stockLevel, quantityDelta, type) {
   return stockLevel;
 }
 
-async function updateLotQuantity(lotId, quantityDelta) {
-  if (!lotId) return null;
-  const lot = await Lot.findById(lotId);
+async function updateLotQuantity(lotId, quantityDelta, fallbackItem, fallbackWarehouse, fallbackSubinventory, fallbackLotNumber) {
+  let lot = null;
+  if (lotId) {
+    lot = await Lot.findById(lotId);
+  } else if (fallbackItem && fallbackWarehouse && fallbackSubinventory && fallbackLotNumber) {
+    lot = await Lot.findOne({
+      item: fallbackItem,
+      warehouse: fallbackWarehouse,
+      subinventory: fallbackSubinventory.toUpperCase(),
+      lotNumber: fallbackLotNumber.toUpperCase()
+    });
+  }
+
   if (lot) {
     lot.quantity = Math.max(0, lot.quantity + quantityDelta);
-    await lot.save();
+    if (lot.quantity === 0) {
+      await lot.deleteOne();
+    } else {
+      await lot.save();
+    }
   }
   return lot;
 }

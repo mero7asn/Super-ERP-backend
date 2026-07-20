@@ -4,7 +4,7 @@ const inventoryItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
-    required: true
+    required: false
   },
   sku: {
     type: String,
@@ -104,7 +104,6 @@ const inventoryItemSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-inventoryItemSchema.index({ sku: 1 });
-inventoryItemSchema.index({ name: 'text', sku: 'text', category: 'text' });
+inventoryItemSchema.index({ name: 'text', category: 'text' });
 
 module.exports = mongoose.model('InventoryItem', inventoryItemSchema);
