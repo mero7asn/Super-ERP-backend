@@ -117,15 +117,18 @@ exports.createOffer = async (req, res) => {
     }
 
     let offer;
+    const leadId = leadDoc._id;
+    const userId = mongoose.Types.ObjectId(req.user._id);
+    const catalogProductId = parsedCatalogProduct;
     const baseOffer = {
-      lead,
-      createdBy: req.user._id,
+      lead: leadId,
+      createdBy: userId,
       title: String(title).trim(),
       description: String(description).trim(),
       price: numPrice,
       validUntil: parsedValidUntil,
       offerType: offerType || 'Service',
-      catalogProduct: parsedCatalogProduct,
+      catalogProduct: catalogProductId,
       notes: notes ? String(notes).trim() : ''
     };
 
