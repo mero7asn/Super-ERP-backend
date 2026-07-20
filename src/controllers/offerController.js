@@ -136,14 +136,18 @@ exports.createOffer = async (req, res) => {
     const maxAttempts = 5;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const candidate = {
-          ...baseOffer,
-          recordLocator: crypto.randomBytes(6).toString('hex'),
-          bookingRef: crypto.randomBytes(8).toString('hex'),
-          // keep paymentToken null for now; if an existing unique index causes
-          // a collision later, send flow will generate a token as needed.
-        };
-        offer = await Offer.create(candidate);
+          const candidate = {
+            ...baseOffer,
+            recordLocator: crypto.randomBytes(6).toString('hex'),
+            bookingRef: crypto.randomBytes(8).toString('hex')
+          };
+          // Use raw collection insert to avoid triggering Mongoose pre-save hooks
+          // that may behave differently in serverless deployments and cause
+          // unexpected transformations (e.g., clearing fields).
+          const now = new Date();
+          const insertDoc = { ...candidate, createdAt: now, updatedAt: now };
+          const res = await Offer.collection.insertOne(insertDoc);
+          offer = await Offer.findById(res.insertedId);
         break;
       } catch (err) {
         if (err && err.code === 11000) {
