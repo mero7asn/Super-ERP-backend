@@ -9,7 +9,11 @@ const {
   getInventoryKPIs, getWarehouses, createWarehouse, updateWarehouse,
   getLots, getSerials, approveAdjustment, rejectAdjustment,
   getReceivingOrders, getShipments, createTransfer, getTransfers,
-  createAdjustment, getAdjustments, getCycleCounts, getPhysicalInventories
+  createAdjustment, getAdjustments, getCycleCounts, getPhysicalInventories,
+  // New enterprise features
+  createPickTask, getPickTasks, getPickTask, updatePickTask, releasePickWave,
+  getInventoryValuation, getABCClassification, getDeadStockReport,
+  getReorderAlerts, getExpiryAlerts, getPutawaySuggestion
 } = require('../controllers/inventoryController');
 
 const INVENTORY_ROLES = [
@@ -74,5 +78,20 @@ router.put('/warehouses/:id', updateWarehouse);
 
 router.get('/lots', getLots);
 router.get('/serials', getSerials);
+
+// ─── Pick Tasks ──────────────────────────────────────────────────────────────
+router.post('/pick-tasks', createPickTask);
+router.get('/pick-tasks', getPickTasks);
+router.get('/pick-tasks/:id', getPickTask);
+router.put('/pick-tasks/:id', updatePickTask);
+router.post('/pick-wave/release', releasePickWave);
+
+// ─── Inventory Intelligence ──────────────────────────────────────────────────
+router.get('/reports/valuation', getInventoryValuation);
+router.get('/reports/abc', getABCClassification);
+router.get('/reports/dead-stock', getDeadStockReport);
+router.get('/alerts/reorder', getReorderAlerts);
+router.get('/alerts/expiry', getExpiryAlerts);
+router.get('/putaway/suggest', getPutawaySuggestion);
 
 module.exports = router;

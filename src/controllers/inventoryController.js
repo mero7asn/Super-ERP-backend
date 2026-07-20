@@ -17,6 +17,7 @@ const {
   checkRole, generateId, getOrCreateStockLevel,
   postTransaction, updateStockLevel, updateLotQuantity, updateSerialStatus
 } = require('../services/inventoryService');
+const { buildPutawaySuggestions } = require('../services/inventoryWorkflowService');
 
 exports.getInventoryItems = async (req, res) => {
   try {
@@ -417,9 +418,26 @@ exports.postInventoryAdjustment = async (req, res) => {
 exports.createReceivingOrder = async (req, res) => {
   try {
     checkRole(req.user);
+    const { lines = [], ...rest } = req.body;
+    const normalizedLines = (lines || []).map((line) => ({
+      ...line,
+      expectedQty: Number(line.expectedQty || 0),
+      receivedQty: Number(line.receivedQty || 0),
+      acceptedQty: Number(line.acceptedQty || 0),
+      rejectedQty: Number(line.rejectedQty || 0),
+      unitCost: Number(line.unitCost || 0),
+      qualityStatus: line.qualityStatus || 'Pending',
+      damageNotes: line.damageNotes || '',
+      suggestedLocator: (line.suggestedLocator || '').toUpperCase(),
+      actualLocator: (line.actualLocator || '').toUpperCase(),
+      overrideReason: line.overrideReason || ''
+    }));
+
     const receiving = await ReceivingOrder.create({
-      ...req.body,
+      ...rest,
+      lines: normalizedLines,
       receivingId: generateId('RCP'),
+      status: 'Expected',
       createdBy: req.user._id
     });
     res.status(201).json({ success: true, data: receiving });
@@ -506,20 +524,94 @@ exports.getInventoryKPIs = async (req, res) => {
   try {
     checkRole(req.user);
 
-    const totalItems = await InventoryItem.countDocuments({ status: 'Active' });
-    const totalWarehouses = await Warehouse.countDocuments({ status: 'Active' });
-
-    const stockAgg = await StockLevel.aggregate([
-      { $group: { _id: null, totalOnHand: { $sum: '$onHand' }, totalAvailable: { $sum: '$available' }, totalAllocated: { $sum: '$allocated' }, totalBlocked: { $sum: '$blocked' } } }
+    const [totalItems, totalWarehouses, stockAgg, txnCount, recentTxns, adjustmentAgg] = await Promise.all([
+      InventoryItem.countDocuments({ status: 'Active' }),
+      Warehouse.countDocuments({ status: 'Active' }),
+      StockLevel.aggregate([
+        {
+          $lookup: { from: 'inventoryitems', localField: 'item', foreignField: '_id', as: 'itemData' }
+        },
+        { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+        {
+          $group: {
+            _id: null,
+            totalOnHand: { $sum: '$onHand' },
+            totalAvailable: { $sum: '$available' },
+            totalAllocated: { $sum: '$allocated' },
+            totalBlocked: { $sum: '$blocked' },
+            totalInventoryValue: { $sum: { $multiply: ['$onHand', '$itemData.unitCost'] } }
+          }
+        }
+      ]),
+      StockTransaction.countDocuments({}),
+      StockTransaction.find().sort({ createdAt: -1 }).limit(10).populate('item', 'sku name').populate('warehouse', 'code name'),
+      InventoryAdjustment.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])
     ]);
+
     const stock = stockAgg[0] || {};
 
-    const txnCount = await StockTransaction.countDocuments({});
-    const recentTxns = await StockTransaction.find().sort({ createdAt: -1 }).limit(10).populate('item', 'sku name').populate('warehouse', 'code name');
-
-    const adjustmentAgg = await InventoryAdjustment.aggregate([
-      { $group: { _id: '$status', count: { $sum: 1 } } }
+    // ── Inventory Turnover & Days on Hand (rolling 90 days) ──
+    const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const cogsPipeline = await StockTransaction.aggregate([
+      { $match: { type: 'GOODS_ISSUE', status: 'Posted', createdAt: { $gte: since90 } } },
+      { $group: { _id: null, totalCOGS: { $sum: '$totalValue' } } }
     ]);
+    const totalCOGS90 = cogsPipeline[0]?.totalCOGS || 0;
+    const annualizedCOGS = (totalCOGS90 / 90) * 365;
+    const avgInventoryValue = stock.totalInventoryValue || 0;
+    const inventoryTurnover = avgInventoryValue > 0 ? Math.round((annualizedCOGS / avgInventoryValue) * 100) / 100 : 0;
+    const daysOnHand = annualizedCOGS > 0 ? Math.round((avgInventoryValue / annualizedCOGS) * 365 * 10) / 10 : null;
+
+    // ── Stock Accuracy from cycle counts (last 30 days) ──
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const accuracyPipeline = await CycleCount.aggregate([
+      { $match: { status: 'Posted', createdAt: { $gte: since30 } } },
+      { $unwind: '$lines' },
+      {
+        $group: {
+          _id: null,
+          totalCounted: { $sum: '$lines.systemQty' },
+          totalVariance: { $sum: { $abs: '$lines.variance' } }
+        }
+      }
+    ]);
+    const acc = accuracyPipeline[0];
+    const stockAccuracy = acc && acc.totalCounted > 0
+      ? Math.round(((acc.totalCounted - acc.totalVariance) / acc.totalCounted) * 10000) / 100
+      : null;
+
+    // ── Fill Rate (last 30 days) ──
+    const fillRatePipeline = await Shipment.aggregate([
+      { $match: { createdAt: { $gte: since30 } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          shipped: { $sum: { $cond: [{ $eq: ['$status', 'Shipped'] }, 1, 0] } }
+        }
+      }
+    ]);
+    const fr = fillRatePipeline[0];
+    const fillRate = fr && fr.total > 0 ? Math.round((fr.shipped / fr.total) * 10000) / 100 : null;
+
+    // ── Reorder Alerts count ──
+    const reorderAlertsCount = await StockLevel.aggregate([
+      { $group: { _id: '$item', totalAvailable: { $sum: '$available' } } },
+      { $lookup: { from: 'inventoryitems', localField: '_id', foreignField: '_id', as: 'itemData' } },
+      { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+      { $match: { 'itemData.reorderPoint': { $gt: 0 }, $expr: { $lte: ['$totalAvailable', '$itemData.reorderPoint'] } } },
+      { $count: 'count' }
+    ]);
+
+    // ── Expiry Alerts (next 30 days) ──
+    const expiryAlertCount = await Lot.countDocuments({
+      expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+      status: 'Unrestricted',
+      quantity: { $gt: 0 }
+    });
+
+    // ── Open pick tasks ──
+    const openPickTasks = await PickTask.countDocuments({ status: { $in: ['Draft', 'Assigned', 'In Progress'] } });
 
     res.json({
       success: true,
@@ -530,9 +622,18 @@ exports.getInventoryKPIs = async (req, res) => {
         totalAvailable: stock.totalAvailable || 0,
         totalAllocated: stock.totalAllocated || 0,
         totalBlocked: stock.totalBlocked || 0,
+        totalInventoryValue: Math.round((stock.totalInventoryValue || 0) * 100) / 100,
         totalTransactions: txnCount,
         recentTransactions: recentTxns,
-        adjustmentsByStatus: adjustmentAgg
+        adjustmentsByStatus: adjustmentAgg,
+        // Enterprise KPIs
+        inventoryTurnover,
+        daysOnHand,
+        stockAccuracy,
+        fillRate,
+        reorderAlertsCount: reorderAlertsCount[0]?.count || 0,
+        expiryAlertCount,
+        openPickTasks
       }
     });
   } catch (error) {
@@ -842,6 +943,502 @@ exports.getPhysicalInventories = async (req, res) => {
       .populate('createdBy', 'firstName lastName')
       .sort({ createdAt: -1 });
     res.json({ success: true, data: inventories });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// ─── Pick Task Management ────────────────────────────────────────────────────
+
+exports.createPickTask = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { shipmentId, warehouse, subinventory, pickingStrategy, waveNumber, zone, lines, assignedTo, remarks } = req.body;
+
+    if (!shipmentId || !warehouse || !subinventory || !lines?.length) {
+      return res.status(400).json({ message: 'Shipment, warehouse, subinventory, and lines are required.' });
+    }
+
+    const pickTask = await PickTask.create({
+      pickTaskId: generateId('PICK'),
+      shipmentId,
+      warehouse,
+      subinventory: subinventory.toUpperCase(),
+      status: 'Draft',
+      pickingStrategy: pickingStrategy || 'DISCRETE',
+      waveNumber: waveNumber || '',
+      zone: zone || '',
+      lines: lines.map(l => ({
+        item: l.item,
+        orderedQty: Number(l.orderedQty),
+        pickedQty: 0,
+        uom: l.uom || 'EA',
+        lotNumber: l.lotNumber || '',
+        serialNumbers: l.serialNumbers || [],
+        sourceLocator: l.sourceLocator || '',
+        packCarton: l.packCarton || ''
+      })),
+      assignedTo: assignedTo || null,
+      remarks: remarks || '',
+      createdBy: req.user._id
+    });
+
+    const populated = await pickTask
+      .populate('warehouse', 'code name')
+      .then(d => d.populate('lines.item', 'sku name'))
+      .then(d => d.populate('assignedTo', 'firstName lastName'))
+      .then(d => d.populate('createdBy', 'firstName lastName'));
+
+    res.status(201).json({ success: true, data: populated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create pick task', error: error.message });
+  }
+};
+
+exports.getPickTasks = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { warehouse, status, assignedTo, pickingStrategy, page = 1, limit = 50 } = req.query;
+    const query = {};
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+    if (assignedTo) query.assignedTo = assignedTo;
+    if (pickingStrategy) query.pickingStrategy = pickingStrategy;
+
+    const tasks = await PickTask.find(query)
+      .populate('warehouse', 'code name')
+      .populate('shipmentId', 'shipmentId customerName')
+      .populate('lines.item', 'sku name baseUom')
+      .populate('assignedTo', 'firstName lastName')
+      .populate('pickedBy', 'firstName lastName')
+      .populate('packedBy', 'firstName lastName')
+      .populate('createdBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    const total = await PickTask.countDocuments(query);
+    res.json({ success: true, data: tasks, total, page: Number(page), limit: Number(limit) });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getPickTask = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const task = await PickTask.findById(req.params.id)
+      .populate('warehouse', 'code name')
+      .populate('shipmentId', 'shipmentId customerName')
+      .populate('lines.item', 'sku name baseUom')
+      .populate('assignedTo', 'firstName lastName')
+      .populate('pickedBy', 'firstName lastName')
+      .populate('packedBy', 'firstName lastName')
+      .populate('createdBy', 'firstName lastName');
+
+    if (!task) return res.status(404).json({ message: 'Pick task not found.' });
+    res.json({ success: true, data: task });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.updatePickTask = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const task = await PickTask.findById(req.params.id);
+    if (!task) return res.status(404).json({ message: 'Pick task not found.' });
+
+    const { status, assignedTo, lines, waveNumber, zone, remarks } = req.body;
+
+    if (status) {
+      const validTransitions = {
+        'Draft': ['Assigned', 'Cancelled'],
+        'Assigned': ['In Progress', 'Cancelled'],
+        'In Progress': ['Picked', 'Cancelled'],
+        'Picked': ['Packed'],
+        'Packed': []
+      };
+      if (!validTransitions[task.status]?.includes(status)) {
+        return res.status(400).json({ message: `Cannot transition from ${task.status} to ${status}.` });
+      }
+      task.status = status;
+      if (status === 'In Progress' && !task.startedAt) task.startedAt = new Date();
+      if (status === 'Picked') task.pickedBy = req.user._id;
+      if (status === 'Packed') { task.packedBy = req.user._id; task.completedAt = new Date(); }
+    }
+
+    if (assignedTo !== undefined) task.assignedTo = assignedTo || null;
+    if (waveNumber !== undefined) task.waveNumber = waveNumber.toUpperCase();
+    if (zone !== undefined) task.zone = zone.toUpperCase();
+    if (remarks !== undefined) task.remarks = remarks;
+
+    if (lines) {
+      task.lines = lines.map(l => ({
+        ...l,
+        pickedQty: Number(l.pickedQty) || 0,
+        sourceLocator: (l.sourceLocator || '').toUpperCase(),
+        lotNumber: (l.lotNumber || '').toUpperCase()
+      }));
+    }
+
+    await task.save();
+    const populated = await PickTask.findById(task._id)
+      .populate('warehouse', 'code name')
+      .populate('shipmentId', 'shipmentId customerName')
+      .populate('lines.item', 'sku name baseUom')
+      .populate('assignedTo', 'firstName lastName')
+      .populate('pickedBy', 'firstName lastName')
+      .populate('packedBy', 'firstName lastName');
+
+    res.json({ success: true, data: populated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update pick task', error: error.message });
+  }
+};
+
+exports.releasePickWave = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { waveNumber, warehouse, subinventory, shipmentIds, pickingStrategy } = req.body;
+    if (!waveNumber || !warehouse || !shipmentIds?.length) {
+      return res.status(400).json({ message: 'waveNumber, warehouse, and shipmentIds are required.' });
+    }
+
+    const Shipment = require('../models/Shipment');
+    const shipments = await Shipment.find({ _id: { $in: shipmentIds }, status: 'Draft' })
+      .populate('lines.item', 'sku name');
+
+    if (!shipments.length) return res.status(400).json({ message: 'No eligible shipments found.' });
+
+    const tasks = [];
+    for (const shipment of shipments) {
+      const task = await PickTask.create({
+        pickTaskId: generateId('PICK'),
+        shipmentId: shipment._id,
+        warehouse,
+        subinventory: (subinventory || 'MAIN').toUpperCase(),
+        status: 'Assigned',
+        pickingStrategy: pickingStrategy || 'WAVE',
+        waveNumber: waveNumber.toUpperCase(),
+        lines: shipment.lines.map(l => ({
+          item: l.item._id || l.item,
+          orderedQty: l.quantity,
+          pickedQty: 0,
+          uom: 'EA',
+          lotNumber: l.lotNumber || '',
+          serialNumbers: l.serialNumbers || [],
+          sourceLocator: ''
+        })),
+        createdBy: req.user._id
+      });
+      tasks.push(task);
+    }
+    res.status(201).json({ success: true, data: tasks, message: `Released wave ${waveNumber} with ${tasks.length} pick task(s).` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to release wave', error: error.message });
+  }
+};
+
+// ─── Inventory Intelligence ──────────────────────────────────────────────────
+
+exports.getInventoryValuation = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { groupBy = 'item', warehouse } = req.query;
+
+    const matchStage = { onHand: { $gt: 0 } };
+    if (warehouse) matchStage.warehouse = new mongoose.Types.ObjectId(warehouse);
+
+    const itemLookup = { from: 'inventoryitems', localField: 'item', foreignField: '_id', as: 'itemData' };
+    const warehouseLookup = { from: 'warehouses', localField: 'warehouse', foreignField: '_id', as: 'warehouseData' };
+
+    let pipeline = [];
+    pipeline.push({ $match: matchStage });
+    pipeline.push({ $lookup: itemLookup });
+    pipeline.push({ $lookup: warehouseLookup });
+    pipeline.push({ $unwind: { path: '$itemData', preserveNullAndEmpty: false } });
+    pipeline.push({ $unwind: { path: '$warehouseData', preserveNullAndEmpty: false } });
+
+    pipeline.push({
+      $project: {
+        item: '$itemData._id',
+        sku: '$itemData.sku',
+        itemName: '$itemData.name',
+        category: '$itemData.category',
+        warehouse: '$warehouseData._id',
+        warehouseCode: '$warehouseData.code',
+        warehouseName: '$warehouseData.name',
+        subinventory: 1,
+        onHand: 1,
+        available: 1,
+        allocated: 1,
+        blocked: 1,
+        unitCost: '$itemData.unitCost',
+        totalValue: { $multiply: ['$onHand', '$itemData.unitCost'] }
+      }
+    });
+
+    let groupField;
+    if (groupBy === 'category') groupField = '$category';
+    else if (groupBy === 'warehouse') groupField = '$warehouseCode';
+    else groupField = '$sku';
+
+    pipeline.push({
+      $group: {
+        _id: groupField,
+        label: { $first: groupBy === 'item' ? '$itemName' : (groupBy === 'category' ? '$category' : '$warehouseName') },
+        totalOnHand: { $sum: '$onHand' },
+        totalAvailable: { $sum: '$available' },
+        totalAllocated: { $sum: '$allocated' },
+        totalBlocked: { $sum: '$blocked' },
+        totalValue: { $sum: '$totalValue' },
+        itemCount: { $addToSet: '$item' }
+      }
+    });
+
+    pipeline.push({
+      $project: {
+        _id: 1,
+        label: 1,
+        totalOnHand: 1,
+        totalAvailable: 1,
+        totalAllocated: 1,
+        totalBlocked: 1,
+        totalValue: { $round: ['$totalValue', 2] },
+        itemCount: { $size: '$itemCount' }
+      }
+    });
+
+    pipeline.push({ $sort: { totalValue: -1 } });
+
+    const results = await StockLevel.aggregate(pipeline);
+
+    const grandTotal = results.reduce((acc, r) => acc + r.totalValue, 0);
+
+    res.json({ success: true, data: results, grandTotal: Math.round(grandTotal * 100) / 100, groupBy });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getABCClassification = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { days = 90 } = req.query;
+    const since = new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000);
+
+    // Aggregate GOODS_ISSUE transactions by item over the period
+    const issuePipeline = [
+      { $match: { type: 'GOODS_ISSUE', status: 'Posted', createdAt: { $gte: since } } },
+      {
+        $group: {
+          _id: '$item',
+          totalIssued: { $sum: '$quantity' },
+          totalValue: { $sum: '$totalValue' },
+          transactionCount: { $sum: 1 }
+        }
+      },
+      {
+        $lookup: { from: 'inventoryitems', localField: '_id', foreignField: '_id', as: 'itemData' }
+      },
+      { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+      {
+        $project: {
+          sku: '$itemData.sku',
+          name: '$itemData.name',
+          category: '$itemData.category',
+          totalIssued: 1,
+          totalValue: { $round: ['$totalValue', 2] },
+          transactionCount: 1
+        }
+      },
+      { $sort: { totalValue: -1 } }
+    ];
+
+    const items = await StockTransaction.aggregate(issuePipeline);
+
+    const grandTotal = items.reduce((acc, i) => acc + (i.totalValue || 0), 0);
+    let cumulative = 0;
+    const classified = items.map(item => {
+      cumulative += item.totalValue || 0;
+      const pct = grandTotal > 0 ? (cumulative / grandTotal) * 100 : 0;
+      const abcClass = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+      return { ...item, cumulativePct: Math.round(pct * 10) / 10, abcClass };
+    });
+
+    res.json({ success: true, data: classified, period: `${days} days`, grandTotal: Math.round(grandTotal * 100) / 100 });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getDeadStockReport = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { days = 90 } = req.query;
+    const since = new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000);
+
+    // Items with onHand > 0 but no GOODS_ISSUE transactions since cutoff
+    const activeItemIds = await StockTransaction.distinct('item', {
+      type: 'GOODS_ISSUE',
+      status: 'Posted',
+      createdAt: { $gte: since }
+    });
+
+    const deadStock = await StockLevel.aggregate([
+      { $match: { onHand: { $gt: 0 }, item: { $nin: activeItemIds } } },
+      { $lookup: { from: 'inventoryitems', localField: 'item', foreignField: '_id', as: 'itemData' } },
+      { $lookup: { from: 'warehouses', localField: 'warehouse', foreignField: '_id', as: 'warehouseData' } },
+      { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+      { $unwind: { path: '$warehouseData', preserveNullAndEmpty: false } },
+      {
+        $group: {
+          _id: '$item',
+          sku: { $first: '$itemData.sku' },
+          name: { $first: '$itemData.name' },
+          category: { $first: '$itemData.category' },
+          unitCost: { $first: '$itemData.unitCost' },
+          totalOnHand: { $sum: '$onHand' },
+          lastTransactionDate: { $max: '$lastTransactionDate' }
+        }
+      },
+      {
+        $project: {
+          sku: 1, name: 1, category: 1,
+          totalOnHand: 1,
+          totalValue: { $round: [{ $multiply: ['$totalOnHand', '$unitCost'] }, 2] },
+          lastTransactionDate: 1,
+          daysSinceLastMovement: {
+            $divide: [{ $subtract: [new Date(), '$lastTransactionDate'] }, 1000 * 60 * 60 * 24]
+          }
+        }
+      },
+      { $sort: { totalValue: -1 } }
+    ]);
+
+    res.json({ success: true, data: deadStock, period: `${days} days`, count: deadStock.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getReorderAlerts = async (req, res) => {
+  try {
+    checkRole(req.user);
+
+    // Items where total available stock < reorderPoint
+    const alerts = await StockLevel.aggregate([
+      { $match: { available: { $gt: 0 } } },
+      {
+        $group: {
+          _id: '$item',
+          totalAvailable: { $sum: '$available' },
+          totalOnHand: { $sum: '$onHand' }
+        }
+      },
+      { $lookup: { from: 'inventoryitems', localField: '_id', foreignField: '_id', as: 'itemData' } },
+      { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+      {
+        $match: {
+          'itemData.reorderPoint': { $gt: 0 },
+          $expr: { $lte: ['$totalAvailable', '$itemData.reorderPoint'] }
+        }
+      },
+      {
+        $project: {
+          sku: '$itemData.sku',
+          name: '$itemData.name',
+          category: '$itemData.category',
+          reorderPoint: '$itemData.reorderPoint',
+          maxStockLevel: '$itemData.maxStockLevel',
+          minOrderQty: '$itemData.minOrderQty',
+          totalAvailable: 1,
+          totalOnHand: 1,
+          shortage: { $subtract: ['$itemData.reorderPoint', '$totalAvailable'] }
+        }
+      },
+      { $sort: { shortage: -1 } }
+    ]);
+
+    res.json({ success: true, data: alerts, count: alerts.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getExpiryAlerts = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { days = 30 } = req.query;
+    const cutoff = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000);
+
+    const expiringLots = await Lot.find({
+      expiryDate: { $lte: cutoff },
+      status: 'Unrestricted',
+      quantity: { $gt: 0 }
+    })
+      .populate('item', 'sku name category shelfLifeDays')
+      .populate('warehouse', 'code name')
+      .sort({ expiryDate: 1 });
+
+    const result = expiringLots.map(l => ({
+      _id: l._id,
+      lotNumber: l.lotNumber,
+      item: l.item,
+      warehouse: l.warehouse,
+      subinventory: l.subinventory,
+      quantity: l.quantity,
+      expiryDate: l.expiryDate,
+      bestBeforeDate: l.bestBeforeDate,
+      daysUntilExpiry: Math.ceil((new Date(l.expiryDate) - new Date()) / (1000 * 60 * 60 * 24)),
+      status: l.status
+    }));
+
+    res.json({ success: true, data: result, count: result.length, horizon: `${days} days` });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.getPutawaySuggestion = async (req, res) => {
+  try {
+    checkRole(req.user);
+    const { item, warehouse, quantity, lotNumber, strategy } = req.query;
+    if (!item || !warehouse) {
+      return res.status(400).json({ message: 'item and warehouse are required.' });
+    }
+
+    const warehouseDoc = await Warehouse.findById(warehouse);
+    if (!warehouseDoc) return res.status(404).json({ message: 'Warehouse not found.' });
+
+    const itemDoc = await InventoryItem.findById(item);
+    if (!itemDoc) return res.status(404).json({ message: 'Item not found.' });
+
+    const existingStock = await StockLevel.find({ item, warehouse, onHand: { $gt: 0 } })
+      .sort({ onHand: -1 })
+      .limit(3);
+
+    let lot = null;
+    if (lotNumber) {
+      lot = await Lot.findOne({ lotNumber: lotNumber.toUpperCase(), warehouse, item });
+    }
+
+    const suggestions = buildPutawaySuggestions({
+      itemDoc,
+      warehouseDoc,
+      existingStock,
+      lot,
+      quantity: Number(quantity || 0)
+    });
+
+    res.json({
+      success: true,
+      item: { sku: itemDoc.sku, name: itemDoc.name, shelfLifeDays: itemDoc.shelfLifeDays },
+      warehouse: { code: warehouseDoc.code, name: warehouseDoc.name },
+      suggestions,
+      selectedStrategy: strategy || suggestions[0]?.strategy || 'DEFAULT_RECEIVING'
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }

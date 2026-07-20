@@ -172,6 +172,103 @@ const runStartupTasks = () => {
       }
     });
     console.log('[Cron] Hourly offer expiry job registered');
+
+    // ── Inventory: daily expiry scan (6:00 AM) ──────────────────────────────
+    cron.schedule('0 6 * * *', async () => {
+      try {
+        const Lot = require('./models/Lot');
+        const Email = require('./models/Email');
+        const User = require('./models/User');
+        const now = new Date();
+        const horizon30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        // Block lots that are past expiry
+        const expired = await Lot.updateMany(
+          { expiryDate: { $lte: now }, status: 'Unrestricted', quantity: { $gt: 0 } },
+          { $set: { status: 'Blocked' } }
+        );
+        if (expired.modifiedCount > 0) {
+          console.log(`[Cron:Inventory] Blocked ${expired.modifiedCount} expired lot(s)`);
+        }
+
+        // Notify inventory managers about lots expiring within 30 days
+        const expiringLots = await Lot.find({
+          expiryDate: { $gt: now, $lte: horizon30 },
+          status: 'Unrestricted',
+          quantity: { $gt: 0 }
+        }).populate('item', 'sku name').populate('warehouse', 'code name');
+
+        if (expiringLots.length > 0) {
+          const managers = await User.find({ role: { $in: ['Inventory Manager', 'Warehouse Manager', 'Super CRM Administrator'] }, isActive: true });
+          for (const mgr of managers) {
+            const lotList = expiringLots.slice(0, 15).map(l =>
+              `- Lot ${l.lotNumber} | ${l.item?.sku} ${l.item?.name} | Qty: ${l.quantity} | Expires: ${new Date(l.expiryDate).toLocaleDateString()} | ${l.warehouse?.code}`
+            ).join('\n');
+            await Email.create({
+              senderId: mgr._id,
+              recipientId: mgr._id,
+              subject: `[Inventory Alert] ${expiringLots.length} lot(s) expiring within 30 days`,
+              body: `Dear ${mgr.firstName},\n\nThe following lots are expiring within 30 days:\n\n${lotList}${expiringLots.length > 15 ? `\n...and ${expiringLots.length - 15} more.` : ''}\n\nPlease review and take action.\n\nBest regards,\nInventory System`
+            });
+          }
+          console.log(`[Cron:Inventory] Sent expiry alerts for ${expiringLots.length} lot(s) to ${managers.length} manager(s)`);
+        }
+      } catch (err) {
+        console.error('[Cron:Inventory] Expiry scan error:', err.message);
+      }
+    });
+    console.log('[Cron] Daily inventory expiry scan registered (6:00 AM)');
+
+    // ── Inventory: reorder point breach check (every 4 hours) ───────────────
+    cron.schedule('0 */4 * * *', async () => {
+      try {
+        const StockLevel = require('./models/StockLevel');
+        const InventoryItem = require('./models/InventoryItem');
+        const Email = require('./models/Email');
+        const User = require('./models/User');
+
+        const breachedItems = await StockLevel.aggregate([
+          { $group: { _id: '$item', totalAvailable: { $sum: '$available' } } },
+          { $lookup: { from: 'inventoryitems', localField: '_id', foreignField: '_id', as: 'itemData' } },
+          { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+          {
+            $match: {
+              'itemData.reorderPoint': { $gt: 0 },
+              $expr: { $lte: ['$totalAvailable', '$itemData.reorderPoint'] }
+            }
+          },
+          {
+            $project: {
+              sku: '$itemData.sku',
+              name: '$itemData.name',
+              reorderPoint: '$itemData.reorderPoint',
+              totalAvailable: 1
+            }
+          },
+          { $sort: { totalAvailable: 1 } }
+        ]);
+
+        if (breachedItems.length > 0) {
+          const managers = await User.find({ role: { $in: ['Inventory Manager', 'Super CRM Administrator'] }, isActive: true });
+          for (const mgr of managers) {
+            const itemList = breachedItems.slice(0, 20).map(i =>
+              `- ${i.sku} ${i.name} | Available: ${i.totalAvailable} | Reorder Point: ${i.reorderPoint}`
+            ).join('\n');
+            await Email.create({
+              senderId: mgr._id,
+              recipientId: mgr._id,
+              subject: `[Inventory Alert] ${breachedItems.length} item(s) below reorder point`,
+              body: `Dear ${mgr.firstName},\n\nThe following items have stock at or below their reorder point:\n\n${itemList}${breachedItems.length > 20 ? `\n...and ${breachedItems.length - 20} more.` : ''}\n\nPlease initiate replenishment orders.\n\nBest regards,\nInventory System`
+            });
+          }
+          console.log(`[Cron:Inventory] Sent reorder alerts for ${breachedItems.length} item(s)`);
+        }
+      } catch (err) {
+        console.error('[Cron:Inventory] Reorder breach check error:', err.message);
+      }
+    });
+    console.log('[Cron] Inventory reorder breach check registered (every 4 hours)');
+
   } catch (err) {
     console.error('[Startup] Error running startup tasks:', err.message);
   }
