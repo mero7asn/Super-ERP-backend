@@ -144,6 +144,9 @@ exports.createOffer = async (req, res) => {
           // unexpected transformations.
           const now = new Date();
           const insertDoc = { ...candidate, createdAt: now, updatedAt: now };
+          delete insertDoc.recordLocator;
+          delete insertDoc.bookingRef;
+          delete insertDoc.paymentToken;
           const res = await Offer.collection.insertOne(insertDoc);
           offer = await Offer.findById(res.insertedId);
         break;
