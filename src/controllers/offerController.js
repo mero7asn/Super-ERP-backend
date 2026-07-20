@@ -49,6 +49,8 @@ exports.createOffer = async (req, res) => {
   try {
     const { lead, title, description, price, validUntil, notes, offerType, catalogProduct } = req.body;
 
+    if (!lead) return res.status(400).json({ message: 'Lead is required' });
+
     const leadDoc = await Lead.findById(lead);
     if (!leadDoc) return res.status(404).json({ message: 'Lead not found' });
 
@@ -72,6 +74,20 @@ exports.createOffer = async (req, res) => {
       return res.status(400).json({ message: 'Valid until date is required' });
     }
 
+    const parsedValidUntil = new Date(validUntil);
+    if (isNaN(parsedValidUntil.getTime())) {
+      return res.status(400).json({ message: 'Valid until must be a valid date' });
+    }
+
+    let parsedCatalogProduct = null;
+    if (catalogProduct && String(catalogProduct).trim() !== '') {
+      try {
+        parsedCatalogProduct = require('mongoose').Types.ObjectId(String(catalogProduct).trim());
+      } catch {
+        return res.status(400).json({ message: 'Invalid catalog product selected' });
+      }
+    }
+
     const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
@@ -92,13 +108,13 @@ exports.createOffer = async (req, res) => {
     const offer = await Offer.create({
       lead,
       createdBy: req.user._id,
-      title,
-      description,
-      price,
-      validUntil,
+      title: title.trim(),
+      description: description.trim(),
+      price: Number(price),
+      validUntil: parsedValidUntil,
       offerType: offerType || 'Service',
-      catalogProduct: catalogProduct || null,
-      notes: notes || ''
+      catalogProduct: parsedCatalogProduct,
+      notes: notes ? String(notes).trim() : ''
     });
 
     const populated = await offer.populate('createdBy', 'firstName lastName role');
