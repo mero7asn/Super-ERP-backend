@@ -47,35 +47,47 @@ exports.getOffersByLead = async (req, res) => {
 // @access  Private (Sales Agent, Manager, Admin)
 exports.createOffer = async (req, res) => {
   try {
-    const { lead, title, description, price, validUntil, notes, offerType, catalogProduct } = req.body;
+    const body = req.body || {};
+    console.log('[createOffer] request body:', JSON.stringify(body));
 
-    if (!lead) return res.status(400).json({ message: 'Lead is required' });
+    const { lead, title, description, price, validUntil, notes, offerType, catalogProduct } = body;
 
-    const leadDoc = await Lead.findById(lead);
+    if (!lead || String(lead).trim() === '') {
+      return res.status(400).json({ message: 'Lead is required' });
+    }
+
+    let leadDoc;
+    try {
+      leadDoc = await Lead.findById(lead);
+    } catch (e) {
+      console.error('[createOffer] invalid lead id:', lead, e.message);
+      return res.status(400).json({ message: 'Invalid lead selected' });
+    }
     if (!leadDoc) return res.status(404).json({ message: 'Lead not found' });
 
-    if (!title || !title.trim()) {
+    if (!title || !String(title).trim()) {
       return res.status(400).json({ message: 'Offer title is required' });
     }
 
-    if (!description || !description.trim()) {
+    if (!description || !String(description).trim()) {
       return res.status(400).json({ message: 'Offer description is required' });
     }
 
-    if (price === undefined || price === null || price === '' || isNaN(Number(price))) {
+    const numPrice = Number(price);
+    if (price === undefined || price === null || price === '' || Number.isNaN(numPrice)) {
       return res.status(400).json({ message: 'Price is required and must be a valid number' });
     }
 
-    if (Number(price) < 0) {
+    if (numPrice < 0) {
       return res.status(400).json({ message: 'Price cannot be negative' });
     }
 
-    if (!validUntil) {
+    if (!validUntil || String(validUntil).trim() === '') {
       return res.status(400).json({ message: 'Valid until date is required' });
     }
 
     const parsedValidUntil = new Date(validUntil);
-    if (isNaN(parsedValidUntil.getTime())) {
+    if (Number.isNaN(parsedValidUntil.getTime())) {
       return res.status(400).json({ message: 'Valid until must be a valid date' });
     }
 
@@ -92,7 +104,6 @@ exports.createOffer = async (req, res) => {
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
-    // Check permissions
     if (isAgent && leadDoc.assignedTo?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to create offers for this lead' });
     }
@@ -108,9 +119,9 @@ exports.createOffer = async (req, res) => {
     const offer = await Offer.create({
       lead,
       createdBy: req.user._id,
-      title: title.trim(),
-      description: description.trim(),
-      price: Number(price),
+      title: String(title).trim(),
+      description: String(description).trim(),
+      price: numPrice,
       validUntil: parsedValidUntil,
       offerType: offerType || 'Service',
       catalogProduct: parsedCatalogProduct,
@@ -120,8 +131,9 @@ exports.createOffer = async (req, res) => {
     const populated = await offer.populate('createdBy', 'firstName lastName role');
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
-    console.error('Offer creation error:', error.message);
-    res.status(400).json({ message: 'Failed to create offer', error: error.message });
+    console.error('[createOffer] unexpected error:', error.message, error.stack);
+    const message = error.message || 'Failed to create offer';
+    res.status(400).json({ message: 'Failed to create offer', error: message });
   }
 };
 
