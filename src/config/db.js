@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+    const conn = await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
     console.log(`MongoDB Connected: ${conn.connection.host}`);
 
     // Drop the old unique index on { period: 1 } if it still exists.
