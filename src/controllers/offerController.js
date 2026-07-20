@@ -133,20 +133,15 @@ exports.createOffer = async (req, res) => {
     };
 
     // Some deployed DBs incorrectly have non-sparse unique indexes on nullable
-    // fields (recordLocator, bookingRef, paymentToken). To be resilient, retry
-    // creation up to several times, regenerating those fields when we hit a
-    // duplicate-key error on insert.
-    const maxAttempts = 5;
+    // fields. Create offers without generating payment / booking references
+    // so record locators are only created when required by payment/acceptance.
+    const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-          const candidate = {
-            ...baseOffer,
-            recordLocator: crypto.randomBytes(6).toString('hex'),
-            bookingRef: crypto.randomBytes(8).toString('hex')
-          };
+          const candidate = { ...baseOffer };
           // Use raw collection insert to avoid triggering Mongoose pre-save hooks
           // that may behave differently in serverless deployments and cause
-          // unexpected transformations (e.g., clearing fields).
+          // unexpected transformations.
           const now = new Date();
           const insertDoc = { ...candidate, createdAt: now, updatedAt: now };
           const res = await Offer.collection.insertOne(insertDoc);
@@ -155,7 +150,6 @@ exports.createOffer = async (req, res) => {
       } catch (err) {
         if (err && err.code === 11000) {
           console.warn('[createOffer] duplicate-key on insert, retrying', { attempt, err: err.message });
-          // small delay could help in some environments; continue to retry
           continue;
         }
         throw err;
@@ -261,6 +255,10 @@ exports.sendOffer = async (req, res) => {
 
     const payLink = buildPaymentLink(offer.paymentToken);
 
+    if (!['Email', 'SMS', 'Both'].includes(method)) {
+      return res.status(400).json({ message: 'Send method must be Email, SMS or Both' });
+    }
+
     // Build message content
     const emailSubject = `New Offer: ${offer.title}`;
     const emailBody = `
@@ -283,7 +281,10 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
 
     const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Pay here: ${payLink}`;
 
-    // Send via selected method(s)
+    let emailSent = true;
+    let smsSent = true;
+    let sendError = null;
+
     if (method === 'Email' || method === 'Both') {
       const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
       const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
@@ -330,18 +331,25 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
           fromName: branding.companyName || 'Super CRM'
         });
       } catch (err) {
-        console.log(`Sending email to ${offer.lead.email}:`);
-        console.log(`Subject: ${brandedSubject}`);
-        console.log(`Body: ${emailBody}`);
-        console.error('Email send failed, falling back to log:', err.message);
+        emailSent = false;
+        sendError = err;
       }
     }
     if (method === 'SMS' || method === 'Both') {
-      if (offer.lead.phone) {
-        // TODO: Integrate with SMS service (Twilio, AWS SNS, etc.)
-        console.log(`Sending SMS to ${offer.lead.phone}:`);
-        console.log(`Message: ${smsMessage}`);
+      if (!offer.lead.phone) {
+        smsSent = false;
+        sendError = new Error('Lead phone number is required for SMS');
+      } else {
+        smsSent = false;
+        sendError = new Error('SMS sending is not configured. Please use Email only or integrate an SMS provider.');
       }
+    }
+
+    if ((method === 'Email' || method === 'Both') && !emailSent) {
+      return res.status(500).json({ message: 'Failed to send offer by email', error: sendError?.message || 'Email send failed' });
+    }
+    if ((method === 'SMS' || method === 'Both') && !smsSent) {
+      return res.status(500).json({ message: 'Failed to send offer by SMS', error: sendError?.message || 'SMS send failed' });
     }
 
     // Update offer status
