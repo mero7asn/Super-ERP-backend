@@ -116,7 +116,8 @@ exports.createOffer = async (req, res) => {
       }
     }
 
-    const offer = await Offer.create({
+    let offer;
+    const baseOffer = {
       lead,
       createdBy: req.user._id,
       title: String(title).trim(),
@@ -125,11 +126,24 @@ exports.createOffer = async (req, res) => {
       validUntil: parsedValidUntil,
       offerType: offerType || 'Service',
       catalogProduct: parsedCatalogProduct,
-      notes: notes ? String(notes).trim() : '',
-      // Ensure a non-null, unique recordLocator at creation time to avoid
-      // duplicate-null unique index errors on deployments with a stale index.
-      recordLocator: crypto.randomBytes(6).toString('hex')
-    });
+      notes: notes ? String(notes).trim() : ''
+    };
+
+    // Some deployment DBs have a non-sparse unique index on `recordLocator` which
+    // causes inserts to fail when the field is null. Retry creation with a
+    // generated locator if we get a duplicate-key error on that index.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        offer = await Offer.create({ ...baseOffer, recordLocator: crypto.randomBytes(6).toString('hex') });
+        break;
+      } catch (err) {
+        if (err && err.code === 11000 && /recordLocator/i.test(err.message)) {
+          console.warn('[createOffer] duplicate recordLocator on create, retrying', { attempt });
+          continue; // try again with a different locator
+        }
+        throw err;
+      }
+    }
 
     const populated = await offer.populate('createdBy', 'firstName lastName role');
     res.status(201).json({ success: true, data: populated });
