@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { encrypt } = require('../services/encryption');
 
 // Generate JWT
 const generateToken = (id, role) => {
@@ -233,6 +234,13 @@ exports.updateUser = async (req, res) => {
       if (req.body.email) user.email = req.body.email;
       if (req.body.password && req.body.password.trim() !== '') {
         user.password = req.body.password;
+      }
+      if (req.body.smtpHost !== undefined) user.smtpHost = req.body.smtpHost || null;
+      if (req.body.smtpPort !== undefined) user.smtpPort = req.body.smtpPort;
+      if (req.body.smtpSecure !== undefined) user.smtpSecure = req.body.smtpSecure;
+      if (req.body.smtpUser !== undefined) user.smtpUser = req.body.smtpUser || null;
+      if (req.body.smtpPass !== undefined && req.body.smtpPass.trim() !== '') {
+        user.smtpPass = encrypt(req.body.smtpPass);
       }
     }
 

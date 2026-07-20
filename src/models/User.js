@@ -136,8 +136,33 @@ const userSchema = new mongoose.Schema({
   rtmSuppressUntil: {
     type: Date,
     default: null
+  },
+  smtpHost: {
+    type: String,
+    default: null
+  },
+  smtpPort: {
+    type: Number,
+    default: 587
+  },
+  smtpSecure: {
+    type: Boolean,
+    default: false
+  },
+  smtpUser: {
+    type: String,
+    default: null
+  },
+  smtpPass: {
+    type: String,
+    default: null,
+    select: false
   }
 }, { timestamps: true });
+
+userSchema.methods.getSmtpPass = function() {
+  return this.smtpPass;
+};
 
 // Encrypt password using bcrypt before saving
 userSchema.pre('save', async function() {
