@@ -157,7 +157,9 @@ exports.uploadBrandingLogo = async (req, res) => {
       return res.status(400).json({ message: 'No logo file uploaded.' });
     }
 
-    const logoUrl = `/uploads/branding/${req.file.filename}`;
+    const mimeType = req.file.mimetype || 'image/png';
+    const base64 = req.file.buffer.toString('base64');
+    const logoUrl = `data:${mimeType};base64,${base64}`;
 
     const existing = await SystemSetting.findOne({ key: 'branding' });
     const currentValue = existing?.value || {};
