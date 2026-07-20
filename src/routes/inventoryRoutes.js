@@ -50,6 +50,7 @@ router.get('/receiving-orders', getReceivingOrders);
 
 router.post('/shipments', createShipment);
 router.get('/shipments', getShipments);
+router.post('/returns', createReturnOrder);
 
 router.post('/transfers', createTransfer);
 router.post('/transfers/:id/execute', createStockTransfer);
