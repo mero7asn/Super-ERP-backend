@@ -105,12 +105,13 @@ const runStartupTasks = () => {
       const cleanupIndex = async () => {
         const cursor = Offer.collection.listIndexes();
         const indexes = typeof cursor.toArray === 'function' ? await cursor.toArray() : await cursor;
-        const hasBadIndex = Array.isArray(indexes) && indexes.some(idx => idx.name === 'recordLocator_1');
-        if (hasBadIndex) {
-          console.log('[Startup] Dropping stale recordLocator_1 index...');
-          return Offer.collection.dropIndex('recordLocator_1');
+        const staleNames = ['recordLocator_1', 'bookingRef_1', 'paymentToken_1'];
+        for (const name of staleNames) {
+          if (Array.isArray(indexes) && indexes.some(idx => idx.name === name)) {
+            console.log(`[Startup] Dropping stale ${name} index...`);
+            await Offer.collection.dropIndex(name);
+          }
         }
-        return Promise.resolve();
       };
       cleanupIndex().catch(err => {
         if (err.code !== 27 && err.code !== 26) {

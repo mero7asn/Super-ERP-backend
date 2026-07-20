@@ -288,3 +288,46 @@ exports.getUsersList = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// @desc    Test SMTP connection for a user
+// @route   POST /api/auth/users/:id/verify-smtp
+// @access  Private (own profile or admin)
+exports.verifySmtp = async (req, res) => {
+  try {
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isOwnProfile = req.user._id.toString() === req.params.id;
+    if (!isOwnProfile && !isAdmin) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const { verifyTransporter, getGlobalEmailConfig } = require('../services/emailService');
+
+    const { smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass } = req.body || {};
+
+    let testUser;
+    if (smtpHost && smtpUser && smtpPass) {
+      testUser = {
+        smtpHost,
+        smtpPort: smtpPort || 587,
+        smtpSecure: smtpSecure || false,
+        smtpUser,
+        getSmtpPass: () => smtpPass,
+      };
+    } else {
+      testUser = await User.findById(req.params.id).select('+smtpPass');
+      if (!testUser) return res.status(404).json({ message: 'User not found' });
+      if (!testUser.smtpHost || !testUser.smtpUser || !testUser.smtpPass) {
+        return res.json({
+          success: false,
+          message: 'SMTP is not fully configured. Make sure Host, Username, and Password are all saved.'
+        });
+      }
+    }
+
+    const globalConfig = await getGlobalEmailConfig();
+    const result = await verifyTransporter(testUser, globalConfig);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to verify SMTP', error: error.message });
+  }
+};
