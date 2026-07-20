@@ -131,9 +131,11 @@ exports.createOffer = async (req, res) => {
     const populated = await offer.populate('createdBy', 'firstName lastName role');
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
-    console.error('[createOffer] unexpected error:', error.message, error.stack);
+    const debugId = (req && req.requestId) || crypto.randomBytes(6).toString('hex');
+    console.error(`[createOffer] unexpected error (id=${debugId}):`, error && error.message);
+    console.error(error && error.stack);
     const message = error.message || 'Failed to create offer';
-    res.status(400).json({ message: 'Failed to create offer', error: message });
+    res.status(500).json({ message: 'Failed to create offer', error: message, debugId });
   }
 };
 

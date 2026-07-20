@@ -52,6 +52,10 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logger for debugging in serverless environments (generates a short request id)
+const requestLogger = require('./middleware/requestLogger');
+app.use(requestLogger);
+
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 const authRoutes = require('./routes/authRoutes');
