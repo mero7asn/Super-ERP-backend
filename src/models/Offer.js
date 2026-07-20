@@ -103,10 +103,14 @@ const offerSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 offerSchema.pre('save', function(next) {
-  if (this.isModified('status') && this.status === 'Accepted' && !this.recordLocator) {
-    this.recordLocator = 'REC-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  try {
+    if (this.isModified('status') && this.status === 'Accepted' && !this.recordLocator) {
+      this.recordLocator = 'REC-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    }
+  } catch (err) {
+    console.error('[Offer.pre:save] hook error:', err && err.message);
   }
-  next();
+  if (typeof next === 'function') return next();
 });
 
 const Offer = mongoose.model('Offer', offerSchema);
