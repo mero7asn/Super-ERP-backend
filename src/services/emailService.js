@@ -104,7 +104,7 @@ const getGlobalEmailConfig = async () => {
 
 // Send an email without an authenticated user (e.g. public payment confirmations).
 // Uses the global SMTP relay; falls back to the provided fromAddress.
-const sendRawEmail = async ({ to, subject, text, html, fromAddress }) => {
+const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) => {
   const cfg = await getGlobalEmailConfig();
   if (!cfg || !cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
     throw new Error('Global SMTP is not configured; cannot send system email.');
@@ -119,8 +119,13 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress }) => {
     family: 4,
   });
 
+  const fromLabel = fromName ? fromName.trim() : 'Super CRM';
+  const fromHeader = fromAddress
+    ? `"${fromLabel}" <${fromAddress}>`
+    : `"${fromLabel}" <${cfg.smtpUser}>`;
+
   const info = await transport.sendMail({
-    from: fromAddress || `"Super CRM" <${cfg.smtpUser}>`,
+    from: fromHeader,
     to,
     subject,
     text,

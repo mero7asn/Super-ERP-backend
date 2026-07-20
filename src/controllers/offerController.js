@@ -1,8 +1,11 @@
 const Offer = require('../models/Offer');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
+const SystemSetting = require('../models/SystemSetting');
+const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { buildPaymentLink } = require('./paymentController');
+const { getGlobalEmailConfig, sendRawEmail } = require('../services/emailService');
 
 // @desc    Get offers for a lead
 // @route   GET /api/offers/lead/:leadId
@@ -215,10 +218,56 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
 
     // Send via selected method(s)
     if (method === 'Email' || method === 'Both') {
-      // TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
-      console.log(`Sending email to ${offer.lead.email}:`);
-      console.log(`Subject: ${emailSubject}`);
-      console.log(`Body: ${emailBody}`);
+      const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
+      const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+      const brandedSubject = `${branding.companyName || 'Super CRM'} — ${emailSubject}`;
+      const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f4f4;">
+    <tr><td align="center" style="padding:24px 0;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;">
+        <tr><td style="background-color:#111827;padding:24px 32px;color:#ffffff;display:flex;align-items:center;gap:12px;">
+          ${branding.companyLogo ? `<img src="${branding.companyLogo}" alt="${branding.companyName}" width="48" height="48" style="object-fit:contain;border-radius:8px;" />` : ''}
+          <div>
+            <h1 style="margin:0;font-size:20px;font-weight:600;">${branding.companyName || 'Super CRM'}</h1>
+            <p style="margin:4px 0 0;font-size:13px;color:#9ca3af;">Offer from ${branding.companyName || 'Super CRM'}</p>
+          </div>
+        </td></tr>
+        <tr><td style="padding:32px;color:#111827;">
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">Hello ${offer.lead.name},</p>
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">We have shared a new offer with you from ${branding.companyName || 'Super CRM'}.</p>
+          <h2 style="margin:0 0 12px;font-size:18px;">${offer.title}</h2>
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">${offer.description}</p>
+          <p style="margin:0 0 8px;font-size:14px;"><strong>Price:</strong> $${offer.price.toLocaleString()}</p>
+          <p style="margin:0 0 24px;font-size:14px;"><strong>Valid Until:</strong> ${new Date(offer.validUntil).toLocaleDateString()}</p>
+          <a href="${payLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:14px 24px;border-radius:8px;font-weight:600;">Pay Now — $${offer.price.toLocaleString()}</a>
+          <p style="margin:24px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">If you have any questions, reply to this email.</p>
+          <p style="margin:16px 0 0;font-size:14px;line-height:1.6;">Best regards,<br />${offer.createdBy.firstName} ${offer.createdBy.lastName}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+      `.trim();
+      try {
+        const globalCfg = await getGlobalEmailConfig();
+        await sendRawEmail({
+          to: offer.lead.email,
+          subject: brandedSubject,
+          text: `${emailBody}\n\nSent by ${branding.companyName || 'Super CRM'}`,
+          html: emailHtml,
+          fromName: branding.companyName || 'Super CRM'
+        });
+      } catch (err) {
+        console.log(`Sending email to ${offer.lead.email}:`);
+        console.log(`Subject: ${brandedSubject}`);
+        console.log(`Body: ${emailBody}`);
+        console.error('Email send failed, falling back to log:', err.message);
+      }
     }
     if (method === 'SMS' || method === 'Both') {
       if (offer.lead.phone) {

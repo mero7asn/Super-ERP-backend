@@ -2,6 +2,7 @@ const Offer = require('../models/Offer');
 const OfferHistory = require('../models/OfferHistory');
 const Booking = require('../models/Booking');
 const Lead = require('../models/Lead');
+const SystemSetting = require('../models/SystemSetting');
 const { sendRawEmail } = require('../services/emailService');
 const { syncOfferToInventory } = require('../services/offerOrderService');
 
@@ -54,6 +55,9 @@ exports.getPublicOfferByToken = async (req, res) => {
       return res.status(410).json({ message: 'This offer has expired and can no longer be paid.' });
     }
 
+    const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
+    const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+
     res.json({
       success: true,
       data: {
@@ -63,7 +67,9 @@ exports.getPublicOfferByToken = async (req, res) => {
         price: offer.price,
         validUntil: offer.validUntil,
         leadName: offer.lead ? offer.lead.name : '',
-        agentName: offer.createdBy ? `${offer.createdBy.firstName} ${offer.createdBy.lastName}` : ''
+        agentName: offer.createdBy ? `${offer.createdBy.firstName} ${offer.createdBy.lastName}` : '',
+        companyName: branding.companyName || 'Super CRM',
+        companyLogo: branding.companyLogo || ''
       }
     });
   } catch (error) {
@@ -159,8 +165,10 @@ exports.processPublicPayment = async (req, res) => {
     try {
       const lead = await Lead.findById(offer.lead);
       if (lead && lead.email) {
+        const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
+        const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
         const payLink = buildPaymentLink(offer.paymentToken);
-        const subject = `Payment Confirmed — ${offer.title}`;
+        const subject = `${branding.companyName || 'Super CRM'} — Payment Confirmed`;
         const text = `
 Hello ${lead.name},
 
@@ -175,7 +183,7 @@ You can view or revisit your offer anytime here:
 ${payLink}
 
 Best regards,
-Super CRM Team
+${branding.companyName || 'Super CRM'}
         `.trim();
 
         const html = `
@@ -208,7 +216,7 @@ Super CRM Team
 </html>
         `.trim();
 
-        await sendRawEmail({ to: lead.email, subject, text, html });
+        await sendRawEmail({ to: lead.email, subject, text, html, fromName: branding.companyName });
       }
     } catch (emailErr) {
       // Do not fail the payment if the confirmation email fails.

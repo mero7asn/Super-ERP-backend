@@ -102,6 +102,48 @@ exports.updateEmailSettings = async (req, res) => {
   }
 };
 
+// @desc    Get platform branding settings (company name and logo)
+// @route   GET /api/settings/branding
+// @access  Private (Super Admin only)
+exports.getBrandingConfig = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+    const setting = await SystemSetting.findOne({ key: 'branding' });
+    res.json({ success: true, data: setting?.value || { companyName: 'Super CRM', companyLogo: '' } });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Save platform branding settings (company name and logo)
+// @route   PUT /api/settings/branding
+// @access  Private (Super Admin only)
+exports.updateBrandingConfig = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    const { companyName, companyLogo } = req.body;
+    const value = {
+      companyName: String(companyName || '').trim() || 'Super CRM',
+      companyLogo: String(companyLogo || '').trim()
+    };
+
+    const setting = await SystemSetting.findOneAndUpdate(
+      { key: 'branding' },
+      { key: 'branding', value, updatedBy: req.user._id },
+      { new: true, upsert: true }
+    );
+
+    res.json({ success: true, message: 'Branding settings saved.', data: setting.value });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Get the ERP integration config (base URL for external departments)
 // @route   GET /api/settings/erp
 // @access  Private (Super Admin only)
