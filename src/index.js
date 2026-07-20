@@ -70,6 +70,7 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const productRoutes = require('./routes/productRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -87,6 +88,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/public/pay', paymentRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 app.get('/', (req, res) => {
   res.send('CRM Backend API is running...');

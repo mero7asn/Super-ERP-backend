@@ -55,7 +55,14 @@ const userSchema = new mongoose.Schema({
       'Attendance and Time Officer',
       'Employee (General User)',
       'HR Director / Executive HR User',
-      'RTM Team Member'
+      'RTM Team Member',
+      'Inventory Manager',
+      'Warehouse Manager',
+      'Receiving Clerk',
+      'Shipping Clerk',
+      'Warehouse Operator',
+      'Inventory Clerk',
+      'Quality Inspector'
     ],
     required: true
   },
