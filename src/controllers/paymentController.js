@@ -3,6 +3,7 @@ const OfferHistory = require('../models/OfferHistory');
 const Booking = require('../models/Booking');
 const Lead = require('../models/Lead');
 const { sendRawEmail } = require('../services/emailService');
+const { syncOfferToInventory } = require('../services/offerOrderService');
 
 // Build an absolute URL for the public payment page on the FRONTEND app.
 // The payment page lives on the client (Vercel frontend), not the API, so we
@@ -124,6 +125,13 @@ exports.processPublicPayment = async (req, res) => {
     offer.recordLocator = booking.recordLocator;
     await offer.save();
 
+    let inventorySync = null;
+    try {
+      inventorySync = await syncOfferToInventory({ offer, booking, performedBy: offer.createdBy });
+    } catch (inventoryErr) {
+      console.error('Failed to sync paid offer to inventory:', inventoryErr.message);
+    }
+
     // Auto-convert the Lead to 'Converted' now that payment is confirmed.
     try {
       await Lead.findByIdAndUpdate(offer.lead, { status: 'Converted' });
@@ -137,7 +145,14 @@ exports.processPublicPayment = async (req, res) => {
       performedBy: offer.createdBy,
       details: `Payment of $${Number(offer.price).toLocaleString()} received via ${method}. Booking Ref: ${booking.bookingRef}`,
       version: offer.version,
-      metadata: { method, bookingRef: booking.bookingRef, amount: offer.price }
+      metadata: {
+        method,
+        bookingRef: booking.bookingRef,
+        amount: offer.price,
+        offerType: offer.offerType || 'Service',
+        inventorySynced: !!inventorySync?.synced,
+        inventoryTransactionId: inventorySync?.transactionId || null
+      }
     });
 
     // Send a confirmation email to the customer (public/unauthenticated send).

@@ -44,7 +44,7 @@ exports.getOffersByLead = async (req, res) => {
 // @access  Private (Sales Agent, Manager, Admin)
 exports.createOffer = async (req, res) => {
   try {
-    const { lead, title, description, price, validUntil, notes } = req.body;
+    const { lead, title, description, price, validUntil, notes, offerType, catalogProduct } = req.body;
 
     const leadDoc = await Lead.findById(lead);
     if (!leadDoc) return res.status(404).json({ message: 'Lead not found' });
@@ -93,6 +93,8 @@ exports.createOffer = async (req, res) => {
       description,
       price,
       validUntil,
+      offerType: offerType || 'Service',
+      catalogProduct: catalogProduct || null,
       notes: notes || ''
     });
 

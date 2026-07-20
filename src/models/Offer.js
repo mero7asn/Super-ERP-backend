@@ -19,6 +19,16 @@ const offerSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Offer description is required']
   },
+  offerType: {
+    type: String,
+    enum: ['Service', 'Product'],
+    default: 'Service'
+  },
+  catalogProduct: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    default: null
+  },
   price: {
     type: Number,
     required: [true, 'Price is required']
