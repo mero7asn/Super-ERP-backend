@@ -5,7 +5,7 @@ const SystemSetting = require('../models/SystemSetting');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { buildPaymentLink } = require('./paymentController');
-const { getGlobalEmailConfig, sendRawEmail } = require('../services/emailService');
+const { getGlobalEmailConfig, sendEmail } = require('../services/emailService');
 
 // @desc    Get offers for a lead
 // @route   GET /api/offers/lead/:leadId
@@ -325,14 +325,14 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
 </html>
       `.trim();
       try {
+        const createdByUser = await User.findById(offer.createdBy._id).select('+smtpPass');
         const globalCfg = await getGlobalEmailConfig();
-        await sendRawEmail({
+        await sendEmail(createdByUser, {
           to: offer.lead.email,
           subject: brandedSubject,
           text: `${emailBody}\n\nSent by ${branding.companyName || 'Super CRM'}`,
           html: emailHtml,
-          fromName: branding.companyName || 'Super CRM'
-        });
+        }, globalCfg);
       } catch (err) {
         emailSent = false;
         sendError = err;
