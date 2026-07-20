@@ -132,6 +132,43 @@ exports.getLeads = async (req, res) => {
   }
 };
 
+// @desc    Get a single lead by id
+// @route   GET /api/leads/:id
+// @access  Private
+exports.getLeadById = async (req, res) => {
+  try {
+    const leadQuery = Lead.findById(req.params.id);
+    let lead = null;
+
+    if (typeof leadQuery?.populate === 'function') {
+      lead = await leadQuery
+        .populate({ path: 'assignedTo', select: 'firstName lastName email role supervisor', populate: { path: 'supervisor', select: 'firstName lastName' } });
+      if (lead?.populate && typeof lead.populate === 'function') {
+        lead = await lead.populate('campaign', 'name platform');
+      }
+    } else {
+      lead = await leadQuery;
+    }
+
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    const isAdmin = ADMIN_ROLES.includes(req.user.role);
+    const isManager = MANAGER_ROLES.includes(req.user.role);
+    const isAgent = req.user.role === 'Sales Agent';
+
+    if (isAdmin || isManager || isAgent) {
+      if (isAgent && lead.assignedTo?.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: 'Not authorized to view this lead' });
+      }
+      return res.status(200).json({ success: true, data: lead });
+    }
+
+    return res.status(403).json({ message: 'Not authorized to view leads' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Create a lead (manual) with round-robin assignment
 // @route   POST /api/leads
 // @access  Private (Admin, Sales Manager)
