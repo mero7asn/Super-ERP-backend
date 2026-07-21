@@ -311,6 +311,16 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
           <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">Hello ${offer.lead.name},</p>
           <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">We have shared a new offer with you from ${branding.companyName || 'Super CRM'}.</p>
           <h2 style="margin:0 0 12px;font-size:18px;">${offer.title}</h2>
+          ${offer.images && offer.images.length > 0 ? `
+            <div style="margin:0 0 20px;">
+              ${offer.images.map(img => `
+                <div style="margin-bottom:12px;">
+                  <img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;" />
+                  ${img.caption ? `<p style="margin:4px 0 0;font-size:12px;color:#6b7280;">${img.caption}</p>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
           <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">${offer.description}</p>
           <p style="margin:0 0 8px;font-size:14px;"><strong>Price:</strong> $${offer.price.toLocaleString()}</p>
           <p style="margin:0 0 24px;font-size:14px;"><strong>Valid Until:</strong> ${new Date(offer.validUntil).toLocaleDateString()}</p>
