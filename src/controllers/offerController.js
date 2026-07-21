@@ -486,7 +486,9 @@ exports.uploadOfferImage = async (req, res) => {
       return res.status(400).json({ message: 'No image file provided' });
     }
 
-    const imageUrl = `/uploads/offers/${req.file.filename}`;
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const base64 = req.file.buffer.toString('base64');
+    const imageUrl = `data:${mimeType};base64,${base64}`;
     offer.images.push({ url: imageUrl, caption: req.body.caption || '' });
     await offer.save();
 
