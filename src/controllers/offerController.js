@@ -233,7 +233,7 @@ exports.deleteOffer = async (req, res) => {
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method } = req.body; // 'Email', 'SMS', or 'Both'
+    const { method, templateId } = req.body; // 'Email', 'SMS', or 'Both'
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -279,12 +279,17 @@ exports.sendOffer = async (req, res) => {
       let brandedSubject = `${branding.companyName || 'Super CRM'} — ${emailSubject}`;
       
       try {
-        const userTemplate = await EmailTemplate.findOne({ 
-          $or: [
-            { createdBy: offer.createdBy._id, isDefault: true },
-            { isDefault: true }
-          ]
-        }).sort({ createdAt: -1 });
+        let userTemplate = null;
+        if (templateId) {
+          userTemplate = await EmailTemplate.findById(templateId);
+        } else {
+          userTemplate = await EmailTemplate.findOne({ 
+            $or: [
+              { createdBy: offer.createdBy._id, isDefault: true },
+              { isDefault: true }
+            ]
+          }).sort({ createdAt: -1 });
+        }
         
         if (userTemplate) {
           const { replacePlaceholders, renderTemplateBlocks } = require('./templateController');
