@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { buildPaymentLink } = require('./paymentController');
 const { getGlobalEmailConfig, sendEmail } = require('../services/emailService');
+const EmailTemplate = require('../models/EmailTemplate');
 
 // @desc    Get offers for a lead
 // @route   GET /api/offers/lead/:leadId
@@ -264,7 +265,52 @@ exports.sendOffer = async (req, res) => {
 
     // Build message content
     const emailSubject = `New Offer: ${offer.title}`;
-    const emailBody = `
+    const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Pay here: ${payLink}`;
+
+    let emailSent = true;
+    let smsSent = true;
+    let sendError = null;
+
+    if (method === 'Email' || method === 'Both') {
+      const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
+      const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+      
+      let emailHtml = '';
+      let brandedSubject = `${branding.companyName || 'Super CRM'} — ${emailSubject}`;
+      
+      try {
+        const userTemplate = await EmailTemplate.findOne({ 
+          $or: [
+            { createdBy: offer.createdBy._id, isDefault: true },
+            { isDefault: true }
+          ]
+        }).sort({ createdAt: -1 });
+        
+        if (userTemplate) {
+          const { replacePlaceholders, renderTemplateBlocks } = require('./templateController');
+          const templateData = {
+            companyName: branding.companyName || 'Super CRM',
+            companyLogo: branding.companyLogo || '',
+            lead: { name: offer.lead.name, email: offer.lead.email },
+            offer: {
+              title: offer.title,
+              description: offer.description,
+              price: offer.price,
+              validUntil: offer.validUntil
+            },
+            payLink,
+            sender: { firstName: offer.createdBy.firstName, lastName: offer.createdBy.lastName }
+          };
+          
+          brandedSubject = replacePlaceholders(userTemplate.subject, templateData);
+          emailHtml = renderTemplateBlocks(userTemplate.blocks, templateData);
+        }
+      } catch (templateErr) {
+        console.error('Template render error, falling back to default:', templateErr.message);
+      }
+      
+      if (!emailHtml) {
+        const emailBody = `
 Hello ${offer.lead.name},
 
 We have a special offer for you!
@@ -280,19 +326,9 @@ ${payLink}
 
 Best regards,
 ${offer.createdBy.firstName} ${offer.createdBy.lastName}
-    `.trim();
-
-    const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Pay here: ${payLink}`;
-
-    let emailSent = true;
-    let smsSent = true;
-    let sendError = null;
-
-    if (method === 'Email' || method === 'Both') {
-      const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
-      const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
-      const brandedSubject = `${branding.companyName || 'Super CRM'} — ${emailSubject}`;
-      const emailHtml = `
+        `.trim();
+        
+        emailHtml = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -333,14 +369,16 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
   </table>
 </body>
 </html>
-      `.trim();
+        `.trim();
+      }
+      
       try {
         const createdByUser = await User.findById(offer.createdBy._id).select('+smtpPass');
         const globalCfg = await getGlobalEmailConfig();
         await sendEmail(createdByUser, {
           to: offer.lead.email,
           subject: brandedSubject,
-          text: `${emailBody}\n\nSent by ${branding.companyName || 'Super CRM'}`,
+          text: emailHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: emailHtml,
         }, globalCfg);
       } catch (err) {
