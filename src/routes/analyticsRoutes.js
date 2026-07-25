@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getSystemAnalytics } = require('../controllers/analyticsController');
+const { getSystemAnalytics, getMarketingPerformance } = require('../controllers/analyticsController');
 const { protect } = require('../middleware/auth');
 const { authorizeRoles } = require('../middleware/rbac');
 
@@ -8,5 +8,6 @@ const { authorizeRoles } = require('../middleware/rbac');
 const analyticsRoles = ['Super CRM Administrator', 'Executive User', 'Business Analyst', 'System Architect'];
 
 router.get('/', protect, authorizeRoles(...analyticsRoles), getSystemAnalytics);
+router.get('/marketing-performance', protect, authorizeRoles(...analyticsRoles), getMarketingPerformance);
 
 module.exports = router;

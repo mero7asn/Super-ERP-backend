@@ -170,7 +170,69 @@ exports.getSystemAnalytics = async (req, res) => {
         roleDistribution
       }
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
 
+// @desc    Get marketing platforms performance (Meta vs Google)
+// @route   GET /api/analytics/marketing-performance
+// @access  Private (Executives and Analysts only)
+exports.getMarketingPerformance = async (req, res) => {
+  try {
+    const platforms = ['Google', 'Meta'];
+    const platformSources = {
+      'Google': ['Google', 'Google Ads'],
+      'Meta': ['Meta', 'Meta Ads']
+    };
+    const performanceData = [];
+
+    for (const platform of platforms) {
+      const sources = platformSources[platform];
+      const totalLeads = await Lead.countDocuments({ source: { $in: sources } });
+      const confirmedLeads = await Lead.countDocuments({
+        source: { $in: sources },
+        status: { $in: ['Confirmed', 'Won', 'Converted'] }
+      });
+      const conversionRate = totalLeads > 0 ? parseFloat(((confirmedLeads / totalLeads) * 100).toFixed(1)) : 0;
+      
+      performanceData.push({
+        platform,
+        totalLeads,
+        convertedLeads: confirmedLeads,
+        conversionRate
+      });
+    }
+
+    let winningPlatform = null;
+    let losingPlatform = null;
+
+    if (performanceData[0].conversionRate > performanceData[1].conversionRate) {
+      winningPlatform = performanceData[0];
+      losingPlatform = performanceData[1];
+    } else if (performanceData[1].conversionRate > performanceData[0].conversionRate) {
+      winningPlatform = performanceData[1];
+      losingPlatform = performanceData[0];
+    } else if (performanceData[0].conversionRate === performanceData[1].conversionRate) {
+      if (performanceData[0].conversionRate > 0) {
+        if (performanceData[0].totalLeads >= performanceData[1].totalLeads) {
+          winningPlatform = performanceData[0];
+          losingPlatform = performanceData[1];
+        } else {
+          winningPlatform = performanceData[1];
+          losingPlatform = performanceData[0];
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        performanceData,
+        winningPlatform,
+        losingPlatform
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
