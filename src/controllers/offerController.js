@@ -344,7 +344,7 @@ exports.sendOffer = async (req, res) => {
               validUntil: offer.validUntil
             },
             payLink,
-            sender: { firstName: offer.createdBy.firstName, lastName: offer.createdBy.lastName }
+            sender: { firstName: req.user.firstName, lastName: req.user.lastName }
           };
           
           brandedSubject = replacePlaceholders(userTemplate.subject, templateData);
@@ -370,7 +370,7 @@ Complete your payment here:
 ${payLink}
 
 Best regards,
-${offer.createdBy.firstName} ${offer.createdBy.lastName}
+${req.user.firstName} ${req.user.lastName}
         `.trim();
         
         emailHtml = `
@@ -407,7 +407,7 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
           <p style="margin:0 0 24px;font-size:14px;"><strong>Valid Until:</strong> ${new Date(offer.validUntil).toLocaleDateString()}</p>
           <a href="${payLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:14px 24px;border-radius:8px;font-weight:600;">Pay Now — $${offer.price.toLocaleString()}</a>
           <p style="margin:24px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">If you have any questions, reply to this email.</p>
-          <p style="margin:16px 0 0;font-size:14px;line-height:1.6;">Best regards,<br />${offer.createdBy.firstName} ${offer.createdBy.lastName}</p>
+           <p style="margin:16px 0 0;font-size:14px;line-height:1.6;">Best regards,<br />${req.user.firstName} ${req.user.lastName}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -428,9 +428,9 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
       ];
       
       try {
-        const createdByUser = await User.findById(offer.createdBy._id).select('+smtpPass');
+        const senderUser = await User.findById(req.user._id).select('+smtpPass');
         const globalCfg = await getGlobalEmailConfig();
-        await sendEmail(createdByUser, {
+        await sendEmail(senderUser, {
           to: offer.lead.email,
           subject: brandedSubject,
           text: finalHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
