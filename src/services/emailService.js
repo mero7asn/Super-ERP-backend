@@ -42,7 +42,6 @@ const sendEmail = async (user, options, globalConfig = null) => {
   const branding = await getBrandingConfig();
   const fromName = branding.companyName || 'Super CRM';
   const fromAddress = activeConfig ? activeConfig.smtpUser : user.email;
-  const replyTo = source === 'global' ? user.email : undefined;
 
   const mailOptions = {
     from: `"${fromName}" <${fromAddress}>`,
@@ -52,6 +51,14 @@ const sendEmail = async (user, options, globalConfig = null) => {
     html: options.html || options.text,
   };
 
+  if (options.cc) {
+    mailOptions.cc = options.cc;
+  }
+  if (options.bcc) {
+    mailOptions.bcc = options.bcc;
+  }
+
+  const replyTo = options.replyTo || user?.email;
   if (replyTo) {
     mailOptions.replyTo = replyTo;
   }

@@ -301,24 +301,27 @@ exports.addLeadNote = async (req, res) => {
       },
     };
 
-    let pushResult;
-    try {
-      pushResult = await Lead.updateOne(
-        { _id: req.params.id, notes: { $not: { $type: 'string' } } },
-        { $push: { notes: noteDoc } }
-      );
-    } catch (pushErr) {
-      console.error('[addLeadNote] $push failed, retrying after normalizing notes array:', pushErr?.message);
-      await Lead.updateOne({ _id: req.params.id }, { $set: { notes: [] } });
-      pushResult = await Lead.updateOne({ _id: req.params.id }, { $push: { notes: noteDoc } });
+    const candidate = await Lead.findOne({ _id: req.params.id }).select('notes');
+    if (!candidate) {
+      return res.status(404).json({ message: 'Lead not found' });
     }
+
+    const notesIsString = candidate.notes && typeof candidate.notes === 'string';
+    if (notesIsString) {
+      await Lead.updateOne({ _id: req.params.id }, { $set: { notes: [] } });
+    }
+
+    const pushResult = await Lead.updateOne(
+      { _id: req.params.id },
+      { $push: { notes: noteDoc } }
+    );
 
     if (!pushResult.matchedCount) {
       return res.status(404).json({ message: 'Lead not found' });
     }
 
     const updated = await Lead.findById(req.params.id);
-    res.status(200).json({ success: true, data: updated });
+    res.status(200).json({ success: true, lead: updated, notesNormalized: !!notesIsString });
   } catch (error) {
     console.error('[addLeadNote] Failed:', error?.message, 'leadId=', req.params.id, 'userId=', req.user?._id);
     const payload = {

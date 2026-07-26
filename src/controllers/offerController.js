@@ -500,6 +500,10 @@ ${req.user.firstName} ${req.user.lastName}
               <div style="font-size:24px;font-weight:800;color:#2563eb;white-space:nowrap;">${formatCurrency(offer.price)}</div>
             </div>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#475569;">${offer.description}</p>
+            ${(offer.images && offer.images.length > 0) ? `
+            <div style="margin:0 0 16px;display:flex;flex-direction:column;gap:12px;">
+              ${offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;" />`).join('')}
+            </div>` : ''}
             <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#64748b;padding-top:12px;border-top:1px dashed #cbd5e1;">
               <div><strong>Valid Until:</strong> ${formatOfferDate(offer.validUntil)}</div>
               <div><strong>Offer ID:</strong> #${offer._id ? offer._id.toString().slice(-6).toUpperCase() : 'OFFER'}</div>
@@ -521,6 +525,17 @@ ${req.user.firstName} ${req.user.lastName}
 
       emailHtml = replaceOfferPlaceholders(emailHtml, emailData);
       brandedSubject = replaceOfferPlaceholders(brandedSubject, emailData);
+
+      if (offer.images && offer.images.length > 0) {
+        const imagesHtml = offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:12px;" />`).join('');
+        if (emailHtml.includes('</body>')) {
+          emailHtml = emailHtml.replace('</body>', `${imagesHtml}</body>`);
+        } else if (emailHtml.includes('</html>')) {
+          emailHtml = emailHtml.replace('</html>', `${imagesHtml}</html>`);
+        } else {
+          emailHtml = `${emailHtml}${imagesHtml}`;
+        }
+      }
 
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
 
@@ -548,9 +563,12 @@ ${req.user.firstName} ${req.user.lastName}
         console.log('[sendOffer] User SMTP config:', senderUser?.smtpHost ? `host=${senderUser.smtpHost} user=${senderUser.smtpUser}` : 'not set');
         await sendEmail(senderUser, {
           to: to || offer.lead.email,
+          cc: cc || undefined,
+          bcc: bcc || undefined,
           subject: brandedSubject,
           text: finalHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: finalHtml,
+          replyTo: from || senderUser?.email,
           attachments: nodemailerAttachments,
         }, globalCfg);
       } catch (err) {
