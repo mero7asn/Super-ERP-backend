@@ -373,7 +373,6 @@ const injectBrandingHeader = (html, branding) => {
     <div style="margin:0 0 24px;padding:24px 24px 20px;background:linear-gradient(135deg,#ffffff 0%,#f8fafc 100%);border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05);">
       <div style="text-align:center;">
         ${logoMarkup}
-        <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#d6a24c;font-weight:700;margin-bottom:6px;">Professional Offer</div>
         <div style="font-size:24px;font-weight:700;color:#111827;">${companyName}</div>
       </div>
     </div>`;
