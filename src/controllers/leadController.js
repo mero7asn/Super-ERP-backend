@@ -289,13 +289,14 @@ exports.addLeadNote = async (req, res) => {
     const firstName = req.user?.firstName || 'User';
     const lastName = req.user?.lastName || '';
     const email = req.user?.email || '';
+    const noteText = String(text).trim();
 
-    const updated = await Lead.findByIdAndUpdate(
-      req.params.id,
+    await Lead.updateOne(
+      { _id: req.params.id },
       {
         $push: {
           notes: {
-            text: String(text).trim(),
+            text: noteText,
             createdAt: new Date(),
             createdBy: {
               name: `${firstName} ${lastName}`.trim(),
@@ -304,10 +305,10 @@ exports.addLeadNote = async (req, res) => {
             },
           },
         },
-      },
-      { new: true }
+      }
     );
 
+    const updated = await Lead.findById(req.params.id);
     res.status(200).json({ success: true, data: updated });
   } catch (error) {
     console.error('[addLeadNote] Failed:', error?.message, 'leadId=', req.params.id, 'userId=', req.user?._id);
