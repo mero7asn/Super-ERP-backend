@@ -8,6 +8,92 @@ const { buildPaymentLink } = require('./paymentController');
 const { getGlobalEmailConfig, sendEmail } = require('../services/emailService');
 const EmailTemplate = require('../models/EmailTemplate');
 
+const formatCurrency = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue)
+    ? numericValue.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+    : '$0.00';
+};
+
+const formatOfferDate = (value) => {
+  if (!value) return 'TBD';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'TBD' : date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const getLeadDisplayName = (lead) => {
+  if (!lead) return 'there';
+  if (lead.name && String(lead.name).trim()) return String(lead.name).trim();
+  const first = lead.firstName ? String(lead.firstName).trim() : '';
+  const last = lead.lastName ? String(lead.lastName).trim() : '';
+  return [first, last].filter(Boolean).join(' ') || 'there';
+};
+
+const buildOfferEmailData = (offer, req, branding, payLink) => {
+  const lead = offer?.lead || {};
+  const leadName = getLeadDisplayName(lead);
+  const senderFirst = req?.user?.firstName || '';
+  const senderLast = req?.user?.lastName || '';
+
+  return {
+    companyName: branding?.companyName || 'Super CRM',
+    companyLogo: branding?.companyLogo || '',
+    lead: {
+      name: leadName,
+      firstName: lead?.firstName || leadName.split(' ')[0] || '',
+      lastName: lead?.lastName || leadName.split(' ').slice(1).join(' ') || '',
+      email: lead?.email || '',
+      phone: lead?.phone || '',
+    },
+    offer: {
+      title: offer?.title || 'Proposal',
+      description: offer?.description || 'A tailored solution prepared for your review.',
+      price: offer?.price || 0,
+      validUntil: offer?.validUntil || null,
+      id: offer?._id ? offer._id.toString().slice(-6).toUpperCase() : 'OFFER',
+    },
+    payLink,
+    sender: {
+      firstName: senderFirst,
+      lastName: senderLast,
+      name: [senderFirst, senderLast].filter(Boolean).join(' ') || 'Super CRM Team',
+    },
+  };
+};
+
+const replaceOfferPlaceholders = (content, data) => {
+  if (!content || typeof content !== 'string') return '';
+
+  const escapedContent = content.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (match, key) => {
+    const value = key.split('.').reduce((current, segment) => {
+      if (!current || typeof current !== 'object') return '';
+      return current[segment] ?? '';
+    }, data);
+
+    if (value === null || value === undefined || value === '') return '';
+
+    if (typeof value === 'number') return value.toLocaleString('en-US');
+    if (value instanceof Date) return value.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return String(value);
+  });
+
+  return escapedContent
+    .replace(/\{\{offer\.price\}\}/g, formatCurrency(data?.offer?.price || 0))
+    .replace(/\{\{offer\.validUntil\}\}/g, formatOfferDate(data?.offer?.validUntil))
+    .replace(/\{\{offer\.id\}\}/g, data?.offer?.id || '')
+    .replace(/\{\{lead\.name\}\}/g, data?.lead?.name || '')
+    .replace(/\{\{lead\.firstName\}\}/g, data?.lead?.firstName || '')
+    .replace(/\{\{lead\.lastName\}\}/g, data?.lead?.lastName || '')
+    .replace(/\{\{lead\.email\}\}/g, data?.lead?.email || '')
+    .replace(/\{\{offer\.title\}\}/g, data?.offer?.title || '')
+    .replace(/\{\{offer\.description\}\}/g, data?.offer?.description || '')
+    .replace(/\{\{payLink\}\}/g, data?.payLink || '')
+    .replace(/\{\{companyName\}\}/g, data?.companyName || '')
+    .replace(/\{\{sender\.firstName\}\}/g, data?.sender?.firstName || '')
+    .replace(/\{\{sender\.lastName\}\}/g, data?.sender?.lastName || '')
+    .replace(/\{\{sender\.name\}\}/g, data?.sender?.name || '');
+};
+
 // @desc    Get offers for a lead
 // @route   GET /api/offers/lead/:leadId
 // @access  Private
@@ -292,8 +378,12 @@ const prepareEmailWithCid = (html, branding) => {
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method, templateId, to, cc, bcc, subject, from, html } = req.body;
+    const requestBody = req.body || {};
+    const requestedMethod = typeof requestBody.method === 'string' ? requestBody.method : 'Email';
+    const { templateId, to, cc, bcc, subject, from, html, attachments: composerAttachments } = requestBody;
     const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+    console.log('[sendOffer] requestBody keys=%s method=%s files=%d', Object.keys(requestBody).join(','), requestedMethod, uploadedFiles.length);
+    console.log('[sendOffer] attachments=%O', Array.isArray(composerAttachments) ? composerAttachments.map(a => ({ name: a?.name, type: a?.type, url: typeof a?.url === 'string' ? a.url.slice(0, 40) : a?.url })) : 'n/a');
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -305,9 +395,7 @@ exports.sendOffer = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to send this offer' });
     }
 
-    if (!['Email', 'SMS', 'Both'].includes(method)) {
-      return res.status(400).json({ message: 'Send method must be Email, SMS or Both' });
-    }
+    const method = ['Email', 'SMS', 'Both'].includes(requestedMethod) ? requestedMethod : 'Email';
 
     const payLink = buildPaymentLink(offer.paymentToken);
 
@@ -318,6 +406,8 @@ exports.sendOffer = async (req, res) => {
     if (method === 'Email' || method === 'Both') {
       const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
       const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+
+      const emailData = buildOfferEmailData(offer, req, branding, payLink);
 
       let emailHtml = html || '';
       let brandedSubject = subject || `New Offer: ${offer.title}`;
@@ -341,7 +431,13 @@ exports.sendOffer = async (req, res) => {
             const templateData = {
               companyName: branding.companyName || 'Super CRM',
               companyLogo: branding.companyLogo || '',
-              lead: { name: offer.lead.name, email: offer.lead.email },
+              lead: {
+                name: offer.lead?.name || getLeadDisplayName(offer.lead),
+                firstName: offer.lead?.firstName || '',
+                lastName: offer.lead?.lastName || '',
+                email: offer.lead?.email || '',
+                phone: offer.lead?.phone || ''
+              },
               offer: {
                 title: offer.title,
                 description: offer.description,
@@ -362,15 +458,15 @@ exports.sendOffer = async (req, res) => {
 
       if (!emailHtml) {
         const emailBody = `
-Hello ${offer.lead.name},
+Hello ${leadName},
 
-We have a special offer for you!
+We have prepared a tailored offer for you from ${branding.companyName || 'Super CRM'}.
 
 ${offer.title}
 ${offer.description}
 
-Price: $${offer.price.toLocaleString()}
-Valid Until: ${new Date(offer.validUntil).toLocaleDateString()}
+Price: ${formatCurrency(offer.price)}
+Valid Until: ${formatOfferDate(offer.validUntil)}
 
 Complete your payment here:
 ${payLink}
@@ -383,37 +479,37 @@ ${req.user.firstName} ${req.user.lastName}
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f4f4;">
-    <tr><td align="center" style="padding:24px 0;">
-      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;">
-        <tr><td style="background-color:#111827;padding:24px 32px;color:#ffffff;display:flex;align-items:center;gap:12px;">
-          ${branding.companyLogo ? `<img src="${branding.companyLogo}" alt="${branding.companyName}" width="48" height="48" style="object-fit:contain;border-radius:8px;" />` : ''}
-          <div>
-            <h1 style="margin:0;font-size:20px;font-weight:600;">${branding.companyName || 'Super CRM'}</h1>
-            <p style="margin:4px 0 0;font-size:13px;color:#9ca3af;">Offer from ${branding.companyName || 'Super CRM'}</p>
-          </div>
+<body style="margin:0;padding:0;background-color:#f5f7fb;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f7fb;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#2563eb 100%);padding:28px 32px;color:#ffffff;">
+          <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#bfdbfe;margin-bottom:8px;">Professional Proposal</div>
+          <h1 style="margin:0;font-size:24px;font-weight:700;">${branding.companyName || 'Super CRM'}</h1>
+          <p style="margin:6px 0 0;font-size:14px;color:#dbeafe;">A tailored offer prepared for ${leadName}</p>
         </td></tr>
-        <tr><td style="padding:32px;color:#111827;">
-          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">Hello ${offer.lead.name},</p>
-          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">We have shared a new offer with you from ${branding.companyName || 'Super CRM'}.</p>
-          <h2 style="margin:0 0 12px;font-size:18px;">${offer.title}</h2>
-          ${offer.images && offer.images.length > 0 ? `
-            <div style="margin:0 0 20px;">
-              ${offer.images.map(img => `
-                <div style="margin-bottom:12px;">
-                  <img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;" />
-                  ${img.caption ? `<p style="margin:4px 0 0;font-size:12px;color:#6b7280;">${img.caption}</p>` : ''}
-                </div>
-              `).join('')}
+        <tr><td style="padding:32px;color:#0f172a;">
+          <p style="margin:0 0 12px;font-size:15px;line-height:1.7;">Hello ${leadName},</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">We are pleased to share a proposal prepared specifically for your review. The details below outline the offer, pricing, and next steps.</p>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin:0 0 20px;">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;">
+              <div>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#2563eb;">Official Offer</div>
+                <h2 style="margin:8px 0 6px;font-size:22px;color:#111827;">${offer.title}</h2>
+              </div>
+              <div style="font-size:24px;font-weight:800;color:#2563eb;white-space:nowrap;">${formatCurrency(offer.price)}</div>
             </div>
-          ` : ''}
-          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">${offer.description}</p>
-          <p style="margin:0 0 8px;font-size:14px;"><strong>Price:</strong> $${offer.price.toLocaleString()}</p>
-          <p style="margin:0 0 24px;font-size:14px;"><strong>Valid Until:</strong> ${new Date(offer.validUntil).toLocaleDateString()}</p>
-          <a href="${payLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:14px 24px;border-radius:8px;font-weight:600;">Pay Now — $${offer.price.toLocaleString()}</a>
-          <p style="margin:24px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">If you have any questions, reply to this email.</p>
-           <p style="margin:16px 0 0;font-size:14px;line-height:1.6;">Best regards,<br />${req.user.firstName} ${req.user.lastName}</p>
+            <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#475569;">${offer.description}</p>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#64748b;padding-top:12px;border-top:1px dashed #cbd5e1;">
+              <div><strong>Valid Until:</strong> ${formatOfferDate(offer.validUntil)}</div>
+              <div><strong>Offer ID:</strong> #${offer._id ? offer._id.toString().slice(-6).toUpperCase() : 'OFFER'}</div>
+            </div>
+          </div>
+          <div style="text-align:center;margin:24px 0 28px;">
+            <a href="${payLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:13px 24px;border-radius:999px;font-weight:700;">Review & Pay Online</a>
+          </div>
+          <p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#475569;">If you have any questions, reply to this email and we will be happy to assist.</p>
+          <p style="margin:0;font-size:14px;line-height:1.7;color:#0f172a;">Best regards,<br />${req.user.firstName} ${req.user.lastName}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -422,6 +518,9 @@ ${req.user.firstName} ${req.user.lastName}
 </html>
         `.trim();
       }
+
+      emailHtml = replaceOfferPlaceholders(emailHtml, emailData);
+      brandedSubject = replaceOfferPlaceholders(brandedSubject, emailData);
 
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
 
@@ -492,6 +591,8 @@ ${req.user.firstName} ${req.user.lastName}
 const OfferTemplate = require('../models/OfferTemplate');
 // @route   GET /api/offers/templates
 // @access  Private
+exports.replaceOfferPlaceholders = replaceOfferPlaceholders;
+
 exports.getTemplates = async (req, res) => {
   try {
     const templates = await OfferTemplate.find({

@@ -265,6 +265,7 @@ exports.updateLead = async (req, res) => {
 exports.addLeadNote = async (req, res) => {
   try {
     const { text } = req.body;
+    console.log('[addLeadNote] leadId=%s userId=%s text=%s', req.params.id, req.user?._id, typeof text === 'string' ? text.slice(0, 50) : text);
     if (!text || !String(text).trim()) {
       return res.status(400).json({ message: 'Note text is required' });
     }
