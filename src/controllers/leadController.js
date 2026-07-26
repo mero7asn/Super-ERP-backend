@@ -285,25 +285,29 @@ exports.addLeadNote = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to add notes to this lead' });
     }
 
-    if (!Array.isArray(lead.notes)) {
-      lead.notes = [];
-    }
-
     const firstName = req.user?.firstName || 'User';
     const lastName = req.user?.lastName || '';
     const email = req.user?.email || '';
 
-    lead.notes.push({
-      text: String(text).trim(),
-      createdBy: {
-        name: `${firstName} ${lastName}`.trim(),
-        email,
-        role: userRole || 'User',
+    const updated = await Lead.findByIdAndUpdate(
+      req.params.id,
+      {
+        $push: {
+          notes: {
+            text: String(text).trim(),
+            createdAt: new Date(),
+            createdBy: {
+              name: `${firstName} ${lastName}`.trim(),
+              email,
+              role: userRole || 'User',
+            },
+          },
+        },
       },
-    });
+      { new: true }
+    );
 
-    await lead.save();
-    res.status(200).json({ success: true, data: lead });
+    res.status(200).json({ success: true, data: updated });
   } catch (error) {
     console.error('[addLeadNote] Failed:', error?.message, 'leadId=', req.params.id, 'userId=', req.user?._id);
     res.status(500).json({ message: 'Server Error', error: error?.message || 'Unknown error' });
