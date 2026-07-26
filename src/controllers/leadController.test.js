@@ -69,6 +69,16 @@ test('replaceOfferPlaceholders uses the offer currency when formatting the price
   assert.match(result, /1,250\.00/);
 });
 
+test('injectBrandingHeader adds the configured company name and logo into the email body', () => {
+  const html = '<div><p>Hello there</p></div>';
+  const branding = { companyName: 'Acme Corp', companyLogo: 'data:image/png;base64,logo' };
+
+  const result = offerController.injectBrandingHeader(html, branding);
+
+  assert.match(result, /Acme Corp/);
+  assert.match(result, /data:image\/png;base64,logo/);
+});
+
 test('addLeadNote normalizes object-shaped existing notes before appending', async () => {
   assert.equal(typeof controller.addLeadNote, 'function');
 

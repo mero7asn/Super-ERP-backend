@@ -357,6 +357,34 @@ exports.deleteOffer = async (req, res) => {
   }
 };
 
+const injectBrandingHeader = (html, branding) => {
+  if (!html || typeof html !== 'string') return html;
+
+  const companyName = branding?.companyName || 'Super CRM';
+  const companyLogo = branding?.companyLogo || '';
+
+  if (!companyName && !companyLogo) return html;
+
+  const logoMarkup = companyLogo && typeof companyLogo === 'string' && companyLogo.startsWith('data:image/')
+    ? `<img src="${companyLogo}" alt="${companyName}" style="height:54px;width:auto;max-width:180px;display:block;margin:0 auto 14px;border:0;" />`
+    : '';
+
+  const headerMarkup = `
+    <div style="margin:0 0 24px;padding:24px 24px 20px;background:linear-gradient(135deg,#ffffff 0%,#f8fafc 100%);border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05);">
+      <div style="text-align:center;">
+        ${logoMarkup}
+        <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#d6a24c;font-weight:700;margin-bottom:6px;">Professional Offer</div>
+        <div style="font-size:24px;font-weight:700;color:#111827;">${companyName}</div>
+      </div>
+    </div>`;
+
+  if (html.includes('<body')) {
+    return html.replace(/<body[^>]*>/i, (match) => `${match}${headerMarkup}`);
+  }
+
+  return `${headerMarkup}${html}`;
+};
+
 const injectOfferImagesBeforePaymentButton = (html, offer, payLink) => {
   if (!html || typeof html !== 'string' || !offer?.images?.length) return html;
 
@@ -424,6 +452,7 @@ const prepareEmailWithCid = (html, branding) => {
   return { html: modifiedHtml, attachments };
 };
 
+exports.injectBrandingHeader = injectBrandingHeader;
 exports.injectOfferImagesBeforePaymentButton = injectOfferImagesBeforePaymentButton;
 exports.prepareEmailWithCid = prepareEmailWithCid;
 
@@ -605,6 +634,7 @@ ${req.user.firstName} ${req.user.lastName}
 
       emailHtml = replaceOfferPlaceholders(emailHtml, emailData);
       brandedSubject = replaceOfferPlaceholders(brandedSubject, emailData);
+      emailHtml = injectBrandingHeader(emailHtml, branding);
       emailHtml = injectOfferImagesBeforePaymentButton(emailHtml, offer, payLink);
 
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
