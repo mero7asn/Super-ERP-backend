@@ -1,35 +1,31 @@
 const SystemSetting = require('../models/SystemSetting');
 const { decrypt } = require('./encryption');
 
+const getActiveEmailConfig = (user, globalConfig) => {
+  if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser && globalConfig.smtpPass) {
+    return { source: 'global', config: globalConfig };
+  }
+  if (user && user.smtpHost && user.smtpUser) {
+    const smtpPass = typeof user.getSmtpPass === 'function' ? user.getSmtpPass() : user.smtpPass;
+    if (smtpPass) {
+      return { source: 'user', config: { smtpHost: user.smtpHost, smtpPort: user.smtpPort || 587, smtpSecure: user.smtpSecure || false, smtpUser: user.smtpUser, smtpPass } };
+    }
+  }
+  return { source: null, config: null };
+};
+
 const createTransporter = async (user, globalConfig = null) => {
   const nodemailer = require('nodemailer');
-  let host, port, secure, authUser, authPass;
-
-  if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser && globalConfig.smtpPass) {
-    host = globalConfig.smtpHost;
-    port = globalConfig.smtpPort || 587;
-    secure = globalConfig.smtpSecure || false;
-    authUser = globalConfig.smtpUser;
-    authPass = globalConfig.smtpPass;
-  } else if (user && user.smtpHost && user.smtpUser) {
-    const smtpPass = typeof user.getSmtpPass === 'function' ? user.getSmtpPass() : user.smtpPass;
-    if (!smtpPass) return null;
-    host = user.smtpHost;
-    port = user.smtpPort || 587;
-    secure = user.smtpSecure || false;
-    authUser = user.smtpUser;
-    authPass = smtpPass;
-  } else {
-    return null;
-  }
+  const { config } = getActiveEmailConfig(user, globalConfig);
+  if (!config) return null;
 
   return nodemailer.createTransport({
-    host,
-    port,
-    secure,
+    host: config.smtpHost,
+    port: config.smtpPort || 587,
+    secure: config.smtpSecure || false,
     auth: {
-      user: authUser,
-      pass: authPass,
+      user: config.smtpUser,
+      pass: config.smtpPass,
     },
     family: 4,
   });
@@ -41,19 +37,12 @@ const sendEmail = async (user, options, globalConfig = null) => {
     throw new Error('SMTP is not configured for this user and no global SMTP relay is available');
   }
 
+  const { source, config: activeConfig } = getActiveEmailConfig(user, globalConfig);
+  console.log(`[email] sendEmail using ${source} config: from=${activeConfig ? activeConfig.smtpUser : user.email} to=${options.to}`);
   const branding = await getBrandingConfig();
   const fromName = branding.companyName || 'Super CRM';
-  let fromAddress;
-  let replyTo;
-
-  if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser) {
-    fromAddress = globalConfig.smtpUser;
-    replyTo = user.email;
-  } else if (user.smtpHost && user.smtpUser) {
-    fromAddress = user.smtpUser;
-  } else {
-    fromAddress = user.email;
-  }
+  const fromAddress = activeConfig ? activeConfig.smtpUser : user.email;
+  const replyTo = source === 'global' ? user.email : undefined;
 
   const mailOptions = {
     from: `"${fromName}" <${fromAddress}>`,
@@ -91,12 +80,14 @@ const sendEmail = async (user, options, globalConfig = null) => {
 };
 
 const verifyTransporter = async (user, globalConfig = null) => {
-  const transporter = await createTransporter(user, globalConfig);
-  if (!transporter) {
+  const { source, config } = getActiveEmailConfig(user, globalConfig);
+  if (!config) {
     return { success: false, message: 'SMTP is not configured for this user and no global SMTP relay is available' };
   }
+  console.log(`[email] verifyTransporter using ${source} config: host=${config.smtpHost} user=${config.smtpUser}`);
 
   try {
+    const transporter = await createTransporter(user, globalConfig);
     await transporter.verify();
     return { success: true, message: 'SMTP connection verified successfully' };
   } catch (error) {
