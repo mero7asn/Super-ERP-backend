@@ -270,8 +270,13 @@ exports.addLeadNote = async (req, res) => {
       return res.status(400).json({ message: 'Note text is required' });
     }
 
-    const lead = await Lead.findById(req.params.id);
-    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+    const objectId = new mongoose.Types.ObjectId(req.params.id);
+    const collection = Lead.collection;
+
+    const leadExists = await collection.findOne({ _id: objectId }, { projection: { _id: 1 } });
+    if (!leadExists) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
 
     const userRole = req.user?.role;
     const isAdmin = ADMIN_ROLES.includes(userRole);
@@ -282,8 +287,11 @@ exports.addLeadNote = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to add notes to this lead' });
     }
 
-    if (isAgent && lead.assignedTo?.toString() !== req.user?._id?.toString()) {
-      return res.status(403).json({ message: 'Not authorized to add notes to this lead' });
+    if (isAgent) {
+      const lead = await Lead.findById(req.params.id).select('assignedTo');
+      if (lead?.assignedTo?.toString() !== req.user?._id?.toString()) {
+        return res.status(403).json({ message: 'Not authorized to add notes to this lead' });
+      }
     }
 
     const firstName = req.user?.firstName || 'User';
@@ -301,18 +309,13 @@ exports.addLeadNote = async (req, res) => {
       },
     };
 
-    const candidate = await Lead.findOne({ _id: req.params.id }).select('notes');
-    if (!candidate) {
-      return res.status(404).json({ message: 'Lead not found' });
+    const candidate = await collection.findOne({ _id: objectId }, { projection: { notes: 1 } });
+    if (candidate && typeof candidate.notes === 'string') {
+      await collection.updateOne({ _id: objectId }, { $set: { notes: [] } });
     }
 
-    const notesIsString = candidate.notes && typeof candidate.notes === 'string';
-    if (notesIsString) {
-      await Lead.updateOne({ _id: req.params.id }, { $set: { notes: [] } });
-    }
-
-    const pushResult = await Lead.updateOne(
-      { _id: req.params.id },
+    const pushResult = await collection.updateOne(
+      { _id: objectId },
       { $push: { notes: noteDoc } }
     );
 
@@ -320,8 +323,7 @@ exports.addLeadNote = async (req, res) => {
       return res.status(404).json({ message: 'Lead not found' });
     }
 
-    const updated = await Lead.findById(req.params.id);
-    res.status(200).json({ success: true, lead: updated, notesNormalized: !!notesIsString });
+    res.status(200).json({ success: true, message: 'Note added successfully', note: noteDoc });
   } catch (error) {
     console.error('[addLeadNote] Failed:', error?.message, 'leadId=', req.params.id, 'userId=', req.user?._id);
     const payload = {
