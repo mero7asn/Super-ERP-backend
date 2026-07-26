@@ -59,6 +59,16 @@ test('prepareEmailWithCid keeps the branding logo inline without adding an attac
   assert.match(result.html, /data:image\/png;base64,logo/);
 });
 
+test('replaceOfferPlaceholders uses the offer currency when formatting the price', () => {
+  const html = 'Price: {{offer.price}}';
+  const data = { offer: { price: 1250, currency: 'EGP' } };
+
+  const result = offerController.replaceOfferPlaceholders(html, data);
+
+  assert.match(result, /EGP|E£/i);
+  assert.match(result, /1,250\.00/);
+});
+
 test('addLeadNote normalizes object-shaped existing notes before appending', async () => {
   assert.equal(typeof controller.addLeadNote, 'function');
 
