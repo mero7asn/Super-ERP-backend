@@ -233,8 +233,7 @@ exports.updateLead = async (req, res) => {
 
       const allowed = { 
         status: req.body.status, 
-        assignedTo: req.body.assignedTo === '' ? null : req.body.assignedTo, 
-        notes: req.body.notes 
+        assignedTo: req.body.assignedTo === '' ? null : req.body.assignedTo
       };
       Object.keys(allowed).forEach(k => allowed[k] === undefined && delete allowed[k]);
 
@@ -255,6 +254,51 @@ exports.updateLead = async (req, res) => {
     }
 
     return res.status(403).json({ message: 'Not authorized' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Add a note to a lead (immutable audit trail)
+// @route   POST /api/leads/:id/notes
+// @access  Private (Admin, Manager, Agent on own leads)
+exports.addLeadNote = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Note text is required' });
+    }
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    const isAdmin = ADMIN_ROLES.includes(req.user.role);
+    const isManager = MANAGER_ROLES.includes(req.user.role);
+    const isAgent = req.user.role === 'Sales Agent';
+
+    if (!isAdmin && !isManager && !isAgent) {
+      return res.status(403).json({ message: 'Not authorized to add notes to this lead' });
+    }
+
+    if (isAgent && lead.assignedTo?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to add notes to this lead' });
+    }
+
+    if (!Array.isArray(lead.notes)) {
+      lead.notes = [];
+    }
+
+    lead.notes.push({
+      text: text.trim(),
+      createdBy: {
+        name: `${req.user.firstName} ${req.user.lastName}`,
+        email: req.user.email,
+        role: req.user.role,
+      },
+    });
+
+    await lead.save();
+    res.status(200).json({ success: true, data: lead });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }

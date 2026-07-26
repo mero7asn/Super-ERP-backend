@@ -31,9 +31,15 @@ const leadSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Campaign'
   },
-  notes: {
-    type: String
-  }
+  notes: [{
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: {
+      name: { type: String },
+      email: { type: String },
+      role: { type: String }
+    }
+  }]
 }, { timestamps: true });
 
 const Lead = mongoose.model('Lead', leadSchema);
