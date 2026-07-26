@@ -4,13 +4,14 @@ const { getOffersByLead, createOffer, updateOffer, deleteOffer, sendOffer, getTe
 const { applyDiscount } = require('../controllers/settingsController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const uploadAttachment = require('../middleware/uploadAttachment');
 
 router.get('/lead/:leadId', protect, getOffersByLead);
 router.get('/locator/:recordLocator', protect, getOfferByLocator);
 router.post('/', protect, createOffer);
 router.put('/:id', protect, updateOffer);
 router.delete('/:id', protect, deleteOffer);
-router.post('/:id/send', protect, sendOffer);
+router.post('/:id/send', protect, uploadAttachment.array('attachments'), sendOffer);
 router.post('/:id/images', protect, upload.single('image'), uploadOfferImage);
 router.delete('/:id/images/:imageId', protect, deleteOfferImage);
 router.post('/:id/call', protect, initiateAvayaCall);

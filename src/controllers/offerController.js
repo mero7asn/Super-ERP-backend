@@ -292,7 +292,8 @@ const prepareEmailWithCid = (html, branding) => {
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method, templateId, to, cc, bcc, subject, from, html, attachments: composerAttachments } = req.body;
+    const { method, templateId, to, cc, bcc, subject, from, html } = req.body;
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -431,14 +432,12 @@ ${req.user.firstName} ${req.user.lastName}
         contentType: att.contentType || 'image/png',
       }));
 
-      if (Array.isArray(composerAttachments)) {
-        for (const att of composerAttachments) {
-          if (!att || !att.url) continue;
-          const base64Data = att.url.replace(/^data:[^;]+;base64,/, '');
+      if (uploadedFiles.length > 0) {
+        for (const file of uploadedFiles) {
           nodemailerAttachments.push({
-            filename: att.name || 'attachment',
-            content: Buffer.from(base64Data, 'base64'),
-            contentType: att.type || 'application/octet-stream',
+            filename: file.originalname,
+            content: file.buffer,
+            contentType: file.mimetype,
           });
         }
       }
