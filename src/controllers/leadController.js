@@ -291,28 +291,44 @@ exports.addLeadNote = async (req, res) => {
     const email = req.user?.email || '';
     const noteText = String(text).trim();
 
-    await Lead.updateOne(
-      { _id: req.params.id },
-      {
-        $push: {
-          notes: {
-            text: noteText,
-            createdAt: new Date(),
-            createdBy: {
-              name: `${firstName} ${lastName}`.trim(),
-              email,
-              role: userRole || 'User',
-            },
-          },
-        },
-      }
-    );
+    const noteDoc = {
+      text: noteText,
+      createdAt: new Date(),
+      createdBy: {
+        name: `${firstName} ${lastName}`.trim(),
+        email,
+        role: userRole || 'User',
+      },
+    };
+
+    let pushResult;
+    try {
+      pushResult = await Lead.updateOne(
+        { _id: req.params.id, notes: { $not: { $type: 'string' } } },
+        { $push: { notes: noteDoc } }
+      );
+    } catch (pushErr) {
+      console.error('[addLeadNote] $push failed, retrying after normalizing notes array:', pushErr?.message);
+      await Lead.updateOne({ _id: req.params.id }, { $set: { notes: [] } });
+      pushResult = await Lead.updateOne({ _id: req.params.id }, { $push: { notes: noteDoc } });
+    }
+
+    if (!pushResult.matchedCount) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
 
     const updated = await Lead.findById(req.params.id);
     res.status(200).json({ success: true, data: updated });
   } catch (error) {
     console.error('[addLeadNote] Failed:', error?.message, 'leadId=', req.params.id, 'userId=', req.user?._id);
-    res.status(500).json({ message: 'Server Error', error: error?.message || 'Unknown error' });
+    const payload = {
+      message: 'Server Error',
+      error: error?.message || 'Unknown error',
+    };
+    if (process.env.NODE_ENV !== 'production' && error?.stack) {
+      payload.stack = error.stack;
+    }
+    res.status(500).json(payload);
   }
 };
 
