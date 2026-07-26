@@ -259,10 +259,9 @@ const prepareEmailWithCid = (html, branding) => {
       filename: 'company_logo.png',
     });
     
-    modifiedHtml = modifiedHtml.replace(
-      new RegExp(`src=(["'])${branding.companyLogo.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\1`, 'g'),
-      `src=$1cid:${cid}$1`
-    );
+    const logoSrc = `src="${branding.companyLogo}"`;
+    const logoCid = `src="cid:${cid}"`;
+    modifiedHtml = modifiedHtml.split(logoSrc).join(logoCid);
   }
   
   return { html: modifiedHtml, attachments };
@@ -422,6 +421,8 @@ ${req.user.firstName} ${req.user.lastName}
       try {
         const senderUser = await User.findById(req.user._id).select('+smtpPass');
         const globalCfg = await getGlobalEmailConfig();
+        console.log('[sendOffer] Global SMTP config:', globalCfg ? `host=${globalCfg.smtpHost} user=${globalCfg.smtpUser}` : 'not set');
+        console.log('[sendOffer] User SMTP config:', senderUser?.smtpHost ? `host=${senderUser.smtpHost} user=${senderUser.smtpUser}` : 'not set');
         await sendEmail(senderUser, {
           to: offer.lead.email,
           subject: brandedSubject,
@@ -430,6 +431,7 @@ ${req.user.firstName} ${req.user.lastName}
           attachments: cidAttachments || [],
         }, globalCfg);
       } catch (err) {
+        console.error('[sendOffer] Email delivery failed:', err.message);
         emailSent = false;
         sendError = err;
       }
@@ -445,10 +447,10 @@ ${req.user.firstName} ${req.user.lastName}
     }
 
     if ((method === 'Email' || method === 'Both') && !emailSent) {
-      return res.status(500).json({ message: 'Failed to send offer by email', error: sendError?.message || 'Email send failed' });
+      return res.status(500).json({ message: 'Failed to send offer by email', error: sendError?.message || 'Email send failed', hint: 'Verify SMTP settings in Admin > Settings or user profile.' });
     }
     if ((method === 'SMS' || method === 'Both') && !smsSent) {
-      return res.status(500).json({ message: 'Failed to send offer by SMS', error: sendError?.message || 'SMS send failed' });
+      return res.status(500).json({ message: 'Failed to send offer by SMS', error: sendError?.message || 'SMS send failed', hint: 'SMS provider not configured. Use Email only or integrate an SMS provider.' });
     }
 
     // Update offer status

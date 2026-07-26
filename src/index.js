@@ -1,6 +1,5 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const cors = require('cors');
 const path = require('path');
 const cron = require('node-cron');
 const connectDB = require('./config/db');
@@ -13,38 +12,18 @@ connectDB().catch(err => {
 
 const app = express();
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
-app.options('/*splat', cors());
-
-// Belt-and-suspenders manual CORS preflight handler. This guarantees the
-// Access-Control-Allow-* headers are returned on OPTIONS even if the `cors`
-// package is not bundled in the deployed serverless function.
 app.use((req, res, next) => {
   const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  if (origin && origin !== '*') {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Max-Age', '86400');
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
-  }
-  next();
-});
-
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  if (req.method === 'OPTIONS') {
-    return res.status(204).send('');
   }
   next();
 });
@@ -52,7 +31,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request logger for debugging in serverless environments (generates a short request id)
 const requestLogger = require('./middleware/requestLogger');
 app.use(requestLogger);
 
@@ -180,7 +158,6 @@ const runStartupTasks = () => {
     });
     console.log('[Cron] Hourly offer expiry job registered');
 
-    // ── Inventory: daily expiry scan (6:00 AM) ──────────────────────────────
     cron.schedule('0 6 * * *', async () => {
       try {
         const Lot = require('./models/Lot');
@@ -189,7 +166,6 @@ const runStartupTasks = () => {
         const now = new Date();
         const horizon30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-        // Block lots that are past expiry
         const expired = await Lot.updateMany(
           { expiryDate: { $lte: now }, status: 'Unrestricted', quantity: { $gt: 0 } },
           { $set: { status: 'Blocked' } }
@@ -198,7 +174,6 @@ const runStartupTasks = () => {
           console.log(`[Cron:Inventory] Blocked ${expired.modifiedCount} expired lot(s)`);
         }
 
-        // Notify inventory managers about lots expiring within 30 days
         const expiringLots = await Lot.find({
           expiryDate: { $gt: now, $lte: horizon30 },
           status: 'Unrestricted',
@@ -226,7 +201,6 @@ const runStartupTasks = () => {
     });
     console.log('[Cron] Daily inventory expiry scan registered (6:00 AM)');
 
-    // ── Inventory: reorder point breach check (every 4 hours) ───────────────
     cron.schedule('0 */4 * * *', async () => {
       try {
         const StockLevel = require('./models/StockLevel');
@@ -268,13 +242,13 @@ const runStartupTasks = () => {
               body: `Dear ${mgr.firstName},\n\nThe following items have stock at or below their reorder point:\n\n${itemList}${breachedItems.length > 20 ? `\n...and ${breachedItems.length - 20} more.` : ''}\n\nPlease initiate replenishment orders.\n\nBest regards,\nInventory System`
             });
           }
-          console.log(`[Cron:Inventory] Sent reorder alerts for ${breachedItems.length} item(s)`);
+          console.log(`[Cron:Inventory] Sent reorder alerts for ${breachedItems.length} item(s) to ${managers.length} manager(s)`);
         }
       } catch (err) {
         console.error('[Cron:Inventory] Reorder breach check error:', err.message);
       }
     });
-    console.log('[Cron] Inventory reorder breach check registered (every 4 hours)');
+    console.log('[Cron] Inventory reorder point breach check registered (every 4 hours)');
 
   } catch (err) {
     console.error('[Startup] Error running startup tasks:', err.message);
