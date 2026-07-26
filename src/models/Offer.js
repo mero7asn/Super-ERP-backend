@@ -78,7 +78,40 @@ const offerSchema = new mongoose.Schema({
     default: ''
   },
 
-  // ── Payment / Booking fields ─────────────────────────────────────
+  // ── Pricing & Discount ─────────────────────────────────────────
+  currency: {
+    type: String,
+    default: 'USD',
+    required: true
+  },
+  discountType: {
+    type: String,
+    enum: ['Percentage', 'Fixed', null],
+    default: null
+  },
+  discountValue: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  originalPrice: {
+    type: Number,
+    default: null
+  },
+  finalPrice: {
+    type: Number,
+    default: null
+  },
+  discountAppliedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  discountAppliedAt: {
+    type: Date,
+    default: null
+  },
+
   // Unique, non-guessable token used in the public payment link (/pay/:token).
   paymentToken: {
     type: String,

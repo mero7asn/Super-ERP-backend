@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getOffersByLead, createOffer, updateOffer, deleteOffer, sendOffer, getTemplates, createTemplate, updateTemplate, deleteTemplate, uploadOfferImage, deleteOfferImage, initiateAvayaCall, getOfferByLocator } = require('../controllers/offerController');
+const { applyDiscount } = require('../controllers/settingsController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
@@ -13,6 +14,7 @@ router.post('/:id/send', protect, sendOffer);
 router.post('/:id/images', protect, upload.single('image'), uploadOfferImage);
 router.delete('/:id/images/:imageId', protect, deleteOfferImage);
 router.post('/:id/call', protect, initiateAvayaCall);
+router.post('/:id/discount', protect, applyDiscount);
 
 // Template routes
 router.get('/templates', protect, getTemplates);

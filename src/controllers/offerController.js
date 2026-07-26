@@ -83,6 +83,13 @@ exports.createOffer = async (req, res) => {
       return res.status(400).json({ message: 'Price cannot be negative' });
     }
 
+    const SystemSetting = require('../models/SystemSetting');
+    const minSetting = await SystemSetting.findOne({ key: offerType === 'Product' ? 'productPriceMin' : 'offerPriceMin' });
+    const minPrice = minSetting?.value ?? 0;
+    if (numPrice < minPrice) {
+      return res.status(400).json({ message: `Minimum price for ${offerType === 'Product' ? 'product' : 'offer'} is ${minPrice.toFixed(2)}` });
+    }
+
     if (!validUntil || String(validUntil).trim() === '') {
       return res.status(400).json({ message: 'Valid until date is required' });
     }
@@ -198,6 +205,19 @@ exports.updateOffer = async (req, res) => {
       return res.json({ success: true, data: updated });
     }
 
+    if (req.body.price !== undefined) {
+      const newPrice = Number(req.body.price);
+      if (Number.isNaN(newPrice) || newPrice < 0) {
+        return res.status(400).json({ message: 'Price must be a valid non-negative number' });
+      }
+      const SystemSetting = require('../models/SystemSetting');
+      const minSetting = await SystemSetting.findOne({ key: offer.offerType === 'Product' ? 'productPriceMin' : 'offerPriceMin' });
+      const minPrice = minSetting?.value ?? 0;
+      if (newPrice < minPrice) {
+        return res.status(400).json({ message: `Minimum price for ${offer.offerType === 'Product' ? 'product' : 'offer'} is ${minPrice.toFixed(2)}` });
+      }
+    }
+
     const updated = await Offer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
       .populate('createdBy', 'firstName lastName role');
     res.json({ success: true, data: updated });
@@ -272,7 +292,7 @@ const prepareEmailWithCid = (html, branding) => {
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method, templateId } = req.body; // 'Email', 'SMS', or 'Both'
+    const { method, templateId, to, cc, bcc, subject, from, html, attachments: composerAttachments } = req.body;
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -284,27 +304,11 @@ exports.sendOffer = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to send this offer' });
     }
 
-    // Ensure the offer has a payment token so a public payment link can be
-    // shared with the customer. Generated once and reused for all resends.
-    if (!offer.paymentToken) {
-      let token;
-      let exists = true;
-      while (exists) {
-        token = crypto.randomBytes(16).toString('hex');
-        exists = await Offer.exists({ paymentToken: token });
-      }
-      offer.paymentToken = token;
-    }
-
-    const payLink = buildPaymentLink(offer.paymentToken);
-
     if (!['Email', 'SMS', 'Both'].includes(method)) {
       return res.status(400).json({ message: 'Send method must be Email, SMS or Both' });
     }
 
-    // Build message content
-    const emailSubject = `New Offer: ${offer.title}`;
-    const smsMessage = `${offer.title} - $${offer.price}. Valid until ${new Date(offer.validUntil).toLocaleDateString()}. Pay here: ${payLink}`;
+    const payLink = buildPaymentLink(offer.paymentToken);
 
     let emailSent = true;
     let smsSent = true;
@@ -313,46 +317,48 @@ exports.sendOffer = async (req, res) => {
     if (method === 'Email' || method === 'Both') {
       const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
       const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
-      
-      let emailHtml = '';
-      let brandedSubject = `${branding.companyName || 'Super CRM'} — ${emailSubject}`;
-      
-      try {
-        let userTemplate = null;
-        if (templateId) {
-          userTemplate = await EmailTemplate.findById(templateId);
-        } else {
-          userTemplate = await EmailTemplate.findOne({ 
-            $or: [
-              { createdBy: offer.createdBy._id, isDefault: true },
-              { isDefault: true }
-            ]
-          }).sort({ createdAt: -1 });
+
+      let emailHtml = html || '';
+      let brandedSubject = subject || `New Offer: ${offer.title}`;
+
+      if (!emailHtml) {
+        try {
+          let userTemplate = null;
+          if (templateId) {
+            userTemplate = await EmailTemplate.findById(templateId);
+          } else {
+            userTemplate = await EmailTemplate.findOne({
+              $or: [
+                { createdBy: offer.createdBy._id, isDefault: true },
+                { isDefault: true }
+              ]
+            }).sort({ createdAt: -1 });
+          }
+
+          if (userTemplate) {
+            const { replacePlaceholders, renderTemplateBlocks } = require('./templateController');
+            const templateData = {
+              companyName: branding.companyName || 'Super CRM',
+              companyLogo: branding.companyLogo || '',
+              lead: { name: offer.lead.name, email: offer.lead.email },
+              offer: {
+                title: offer.title,
+                description: offer.description,
+                price: offer.price,
+                validUntil: offer.validUntil
+              },
+              payLink,
+              sender: { firstName: req.user.firstName, lastName: req.user.lastName }
+            };
+
+            brandedSubject = replacePlaceholders(userTemplate.subject, templateData);
+            emailHtml = renderTemplateBlocks(userTemplate.blocks, templateData);
+          }
+        } catch (templateErr) {
+          console.error('Template render error, falling back to default:', templateErr.message);
         }
-        
-        if (userTemplate) {
-          const { replacePlaceholders, renderTemplateBlocks } = require('./templateController');
-          const templateData = {
-            companyName: branding.companyName || 'Super CRM',
-            companyLogo: branding.companyLogo || '',
-            lead: { name: offer.lead.name, email: offer.lead.email },
-            offer: {
-              title: offer.title,
-              description: offer.description,
-              price: offer.price,
-              validUntil: offer.validUntil
-            },
-            payLink,
-            sender: { firstName: req.user.firstName, lastName: req.user.lastName }
-          };
-          
-          brandedSubject = replacePlaceholders(userTemplate.subject, templateData);
-          emailHtml = renderTemplateBlocks(userTemplate.blocks, templateData);
-        }
-      } catch (templateErr) {
-        console.error('Template render error, falling back to default:', templateErr.message);
       }
-      
+
       if (!emailHtml) {
         const emailBody = `
 Hello ${offer.lead.name},
@@ -371,7 +377,7 @@ ${payLink}
 Best regards,
 ${req.user.firstName} ${req.user.lastName}
         `.trim();
-        
+
         emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -415,20 +421,39 @@ ${req.user.firstName} ${req.user.lastName}
 </html>
         `.trim();
       }
-      
+
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
-      
+
+      const nodemailerAttachments = (cidAttachments || []).map((att) => ({
+        filename: att.filename || 'image.png',
+        cid: att.cid,
+        content: att.content || Buffer.from(''),
+        contentType: att.contentType || 'image/png',
+      }));
+
+      if (Array.isArray(composerAttachments)) {
+        for (const att of composerAttachments) {
+          if (!att || !att.url) continue;
+          const base64Data = att.url.replace(/^data:[^;]+;base64,/, '');
+          nodemailerAttachments.push({
+            filename: att.name || 'attachment',
+            content: Buffer.from(base64Data, 'base64'),
+            contentType: att.type || 'application/octet-stream',
+          });
+        }
+      }
+
       try {
         const senderUser = await User.findById(req.user._id).select('+smtpPass');
         const globalCfg = await getGlobalEmailConfig();
         console.log('[sendOffer] Global SMTP config:', globalCfg ? `host=${globalCfg.smtpHost} user=${globalCfg.smtpUser}` : 'not set');
         console.log('[sendOffer] User SMTP config:', senderUser?.smtpHost ? `host=${senderUser.smtpHost} user=${senderUser.smtpUser}` : 'not set');
         await sendEmail(senderUser, {
-          to: offer.lead.email,
+          to: to || offer.lead.email,
           subject: brandedSubject,
           text: finalHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: finalHtml,
-          attachments: cidAttachments || [],
+          attachments: nodemailerAttachments,
         }, globalCfg);
       } catch (err) {
         console.error('[sendOffer] Email delivery failed:', err.message);
