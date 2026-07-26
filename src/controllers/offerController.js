@@ -337,39 +337,38 @@ exports.deleteOffer = async (req, res) => {
 const prepareEmailWithCid = (html, branding) => {
   const attachments = [];
   let cidCounter = 0;
-  
-  let modifiedHtml = html.replace(/src=(["'])(data:image\/[^;]+;base64,[^"']*)\1/g, (match, quote, base64Data) => {
+
+  const logoSrcAttr = branding?.companyLogo ? `src="${branding.companyLogo}"` : '';
+  const logoSrcAttrSingle = branding?.companyLogo ? `src='${branding.companyLogo}'` : '';
+  const logoPlaceholder = '__SUPER_CRM_LOGO_PLACEHOLDER__';
+
+  let htmlWithLogoPlaceholder = html;
+  if (logoSrcAttr) {
+    htmlWithLogoPlaceholder = htmlWithLogoPlaceholder.split(logoSrcAttr).join(logoPlaceholder);
+  }
+  if (logoSrcAttrSingle) {
+    htmlWithLogoPlaceholder = htmlWithLogoPlaceholder.split(logoSrcAttrSingle).join(logoPlaceholder);
+  }
+
+  let modifiedHtml = htmlWithLogoPlaceholder.replace(/src=(["'])(data:image\/[^;]+;base64,[^"']*)\1/g, (match, quote, base64Data) => {
     const cid = `img_${++cidCounter}_${Date.now()}`;
     const mimeMatch = base64Data.match(/data:(image\/[^;]+);base64,/);
     const contentType = mimeMatch ? mimeMatch[1] : 'image/png';
-    
+
     attachments.push({
       cid,
       content: Buffer.from(base64Data.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
       contentType,
       filename: `image_${cidCounter}.png`,
     });
-    
+
     return `src=${quote}cid:${cid}${quote}`;
   });
-  
-  if (branding?.companyLogo && branding.companyLogo.startsWith('data:image')) {
-    const cid = `logo_${Date.now()}`;
-    const mimeMatch = branding.companyLogo.match(/data:(image\/[^;]+);base64,/);
-    const contentType = mimeMatch ? mimeMatch[1] : 'image/png';
-    
-    attachments.push({
-      cid,
-      content: Buffer.from(branding.companyLogo.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
-      contentType,
-      filename: 'company_logo.png',
-    });
-    
-    const logoSrc = `src="${branding.companyLogo}"`;
-    const logoCid = `src="cid:${cid}"`;
-    modifiedHtml = modifiedHtml.split(logoSrc).join(logoCid);
+
+  if (logoSrcAttr || logoSrcAttrSingle) {
+    modifiedHtml = modifiedHtml.split(logoPlaceholder).join(logoSrcAttr || logoSrcAttrSingle);
   }
-  
+
   return { html: modifiedHtml, attachments };
 };
 
@@ -509,15 +508,15 @@ ${req.user.firstName} ${req.user.lastName}
               <div style="font-size:24px;font-weight:800;color:#2563eb;white-space:nowrap;">${formatCurrency(offer.price)}</div>
             </div>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#475569;">${offer.description}</p>
-            ${(offer.images && offer.images.length > 0) ? `
-            <div style="margin:0 0 20px;display:flex;flex-direction:column;gap:14px;">
-              ${offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;max-height:320px;height:auto;width:auto;border-radius:10px;border:1px solid #e5e7eb;object-fit:contain;background:#ffffff;" />`).join('')}
-            </div>` : ''}
             <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#64748b;padding-top:12px;border-top:1px dashed #cbd5e1;">
               <div><strong>Valid Until:</strong> ${formatOfferDate(offer.validUntil)}</div>
               <div><strong>Offer ID:</strong> #${offer._id ? offer._id.toString().slice(-6).toUpperCase() : 'OFFER'}</div>
             </div>
           </div>
+          ${(offer.images && offer.images.length > 0) ? `
+          <div style="text-align:center;margin:0 0 24px;">
+            ${offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="display:inline-block;max-width:420px;width:100%;height:auto;max-height:320px;border-radius:12px;border:1px solid #e5e7eb;object-fit:contain;background:#ffffff;" />`).join('')}
+          </div>` : ''}
           <div style="text-align:center;margin:24px 0 28px;">
             <a href="${payLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:13px 24px;border-radius:999px;font-weight:700;">Review & Pay Online</a>
           </div>
