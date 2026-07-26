@@ -534,6 +534,31 @@ ${req.user.firstName} ${req.user.lastName}
       emailHtml = replaceOfferPlaceholders(emailHtml, emailData);
       brandedSubject = replaceOfferPlaceholders(brandedSubject, emailData);
 
+      if (offer.images && offer.images.length > 0) {
+        const imagesHtml = offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="display:block;max-width:420px;width:100%;height:auto;max-height:320px;margin:0 auto 16px;border-radius:12px;border:1px solid #e5e7eb;object-fit:contain;background:#ffffff;" />`).join('');
+        if (payLink && emailHtml.includes(payLink)) {
+          const escaped = payLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = new RegExp(`(<a[^>]*href=["']${escaped}["'][^>]*>)`, 'i');
+          if (pattern.test(emailHtml)) {
+            emailHtml = emailHtml.replace(pattern, `${imagesHtml}$1`);
+          } else {
+            if (emailHtml.includes('</body>')) {
+              emailHtml = emailHtml.replace('</body>', `${imagesHtml}</body>`);
+            } else if (emailHtml.includes('</html>')) {
+              emailHtml = emailHtml.replace('</html>', `${imagesHtml}</html>`);
+            } else {
+              emailHtml = `${emailHtml}${imagesHtml}`;
+            }
+          }
+        } else if (emailHtml.includes('</body>')) {
+          emailHtml = emailHtml.replace('</body>', `${imagesHtml}</body>`);
+        } else if (emailHtml.includes('</html>')) {
+          emailHtml = emailHtml.replace('</html>', `${imagesHtml}</html>`);
+        } else {
+          emailHtml = `${emailHtml}${imagesHtml}`;
+        }
+      }
+
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
 
       const nodemailerAttachments = (cidAttachments || []).map((att) => ({
