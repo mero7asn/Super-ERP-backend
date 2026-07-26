@@ -69,6 +69,25 @@ const sendEmail = async (user, options, globalConfig = null) => {
     mailOptions.replyTo = replyTo;
   }
 
+  if (options.attachments && options.attachments.length > 0) {
+    mailOptions.attachments = options.attachments.map(att => {
+      const base64Data = att.url ? att.url.replace(/^data:[^;]+;base64,/, '') : null;
+      if (att.cid) {
+        return {
+          filename: att.filename || 'image.png',
+          cid: att.cid,
+          content: att.content || (base64Data ? Buffer.from(base64Data, 'base64') : Buffer.from('')),
+          contentType: att.contentType || 'image/png',
+        };
+      }
+      return {
+        filename: att.filename || att.name || 'attachment',
+        content: att.content || (base64Data ? Buffer.from(base64Data, 'base64') : Buffer.from('')),
+        contentType: att.contentType || att.type || 'application/octet-stream',
+      };
+    });
+  }
+
   const info = await transporter.sendMail(mailOptions);
   return info;
 };
@@ -114,7 +133,7 @@ const getBrandingConfig = async () => {
 
 // Send an email without an authenticated user (e.g. public payment confirmations).
 // Uses the global SMTP relay; falls back to the provided fromAddress.
-const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) => {
+const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName, attachments }) => {
   const cfg = await getGlobalEmailConfig();
   if (!cfg || !cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
     throw new Error('Global SMTP is not configured; cannot send system email.');
@@ -141,6 +160,24 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName }) 
     subject,
     text,
     html: html || text,
+    ...(options.attachments && options.attachments.length > 0 ? {
+      attachments: options.attachments.map(att => {
+        const base64Data = att.url ? att.url.replace(/^data:[^;]+;base64,/, '') : null;
+        if (att.cid) {
+          return {
+            filename: att.filename || 'image.png',
+            cid: att.cid,
+            content: att.content || (base64Data ? Buffer.from(base64Data, 'base64') : Buffer.from('')),
+            contentType: att.contentType || 'image/png',
+          };
+        }
+        return {
+          filename: att.filename || att.name || 'attachment',
+          content: att.content || (base64Data ? Buffer.from(base64Data, 'base64') : Buffer.from('')),
+          contentType: att.contentType || att.type || 'application/octet-stream',
+        };
+      })
+    } : {})
   });
 
   return info;

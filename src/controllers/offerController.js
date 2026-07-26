@@ -228,12 +228,52 @@ exports.deleteOffer = async (req, res) => {
   }
 };
 
+const prepareEmailWithCid = (html, branding) => {
+  const attachments = [];
+  let cidCounter = 0;
+  
+  let modifiedHtml = html.replace(/src=(["'])(data:image\/[^;]+;base64,[^"']*)\1/g, (match, quote, base64Data) => {
+    const cid = `img_${++cidCounter}_${Date.now()}`;
+    const mimeMatch = base64Data.match(/data:(image\/[^;]+);base64,/);
+    const contentType = mimeMatch ? mimeMatch[1] : 'image/png';
+    
+    attachments.push({
+      cid,
+      content: Buffer.from(base64Data.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
+      contentType,
+      filename: `image_${cidCounter}.png`,
+    });
+    
+    return `src=${quote}cid:${cid}${quote}`;
+  });
+  
+  if (branding?.companyLogo && branding.companyLogo.startsWith('data:image')) {
+    const cid = `logo_${Date.now()}`;
+    const mimeMatch = branding.companyLogo.match(/data:(image\/[^;]+);base64,/);
+    const contentType = mimeMatch ? mimeMatch[1] : 'image/png';
+    
+    attachments.push({
+      cid,
+      content: Buffer.from(branding.companyLogo.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
+      contentType,
+      filename: 'company_logo.png',
+    });
+    
+    modifiedHtml = modifiedHtml.replace(
+      new RegExp(`src=(["'])${branding.companyLogo.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\1`, 'g'),
+      `src=$1cid:${cid}$1`
+    );
+  }
+  
+  return { html: modifiedHtml, attachments };
+};
+
 // @desc    Send offer via email/SMS
 // @route   POST /api/offers/:id/send
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method, templateId } = req.body; // 'Email', 'SMS', or 'Both'
+    const { method, templateId, attachments: frontendAttachments } = req.body; // 'Email', 'SMS', or 'Both'
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -377,14 +417,25 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
         `.trim();
       }
       
+      const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
+      const allAttachments = [
+        ...(cidAttachments || []),
+        ...(frontendAttachments || []).map(att => ({
+          filename: att.name || att.filename,
+          content: Buffer.from(att.url.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
+          contentType: att.type || att.contentType || 'application/octet-stream',
+        })),
+      ];
+      
       try {
         const createdByUser = await User.findById(offer.createdBy._id).select('+smtpPass');
         const globalCfg = await getGlobalEmailConfig();
         await sendEmail(createdByUser, {
           to: offer.lead.email,
           subject: brandedSubject,
-          text: emailHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
-          html: emailHtml,
+          text: finalHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+          html: finalHtml,
+          attachments: allAttachments,
         }, globalCfg);
       } catch (err) {
         emailSent = false;
@@ -421,8 +472,6 @@ ${offer.createdBy.firstName} ${offer.createdBy.lastName}
 };
 
 const OfferTemplate = require('../models/OfferTemplate');
-
-// @desc    Get all offer templates (user's own + public)
 // @route   GET /api/offers/templates
 // @access  Private
 exports.getTemplates = async (req, res) => {
