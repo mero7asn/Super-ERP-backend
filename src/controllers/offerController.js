@@ -273,7 +273,7 @@ const prepareEmailWithCid = (html, branding) => {
 // @access  Private
 exports.sendOffer = async (req, res) => {
   try {
-    const { method, templateId, attachments: frontendAttachments } = req.body; // 'Email', 'SMS', or 'Both'
+    const { method, templateId } = req.body; // 'Email', 'SMS', or 'Both'
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -418,14 +418,6 @@ ${req.user.firstName} ${req.user.lastName}
       }
       
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
-      const allAttachments = [
-        ...(cidAttachments || []),
-        ...(frontendAttachments || []).map(att => ({
-          filename: att.name || att.filename,
-          content: Buffer.from(att.url.replace(/^data:image\/\w+;base64,/, ''), 'base64'),
-          contentType: att.type || att.contentType || 'application/octet-stream',
-        })),
-      ];
       
       try {
         const senderUser = await User.findById(req.user._id).select('+smtpPass');
@@ -435,7 +427,7 @@ ${req.user.firstName} ${req.user.lastName}
           subject: brandedSubject,
           text: finalHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: finalHtml,
-          attachments: allAttachments,
+          attachments: cidAttachments || [],
         }, globalCfg);
       } catch (err) {
         emailSent = false;

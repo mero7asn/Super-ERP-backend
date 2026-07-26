@@ -3,9 +3,15 @@ const { decrypt } = require('./encryption');
 
 const createTransporter = async (user, globalConfig = null) => {
   const nodemailer = require('nodemailer');
-  let host, port, secure, authUser, authPass, fallbackName;
+  let host, port, secure, authUser, authPass;
 
-  if (user && user.smtpHost && user.smtpUser) {
+  if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser && globalConfig.smtpPass) {
+    host = globalConfig.smtpHost;
+    port = globalConfig.smtpPort || 587;
+    secure = globalConfig.smtpSecure || false;
+    authUser = globalConfig.smtpUser;
+    authPass = globalConfig.smtpPass;
+  } else if (user && user.smtpHost && user.smtpUser) {
     const smtpPass = typeof user.getSmtpPass === 'function' ? user.getSmtpPass() : user.smtpPass;
     if (!smtpPass) return null;
     host = user.smtpHost;
@@ -13,14 +19,6 @@ const createTransporter = async (user, globalConfig = null) => {
     secure = user.smtpSecure || false;
     authUser = user.smtpUser;
     authPass = smtpPass;
-    fallbackName = null;
-  } else if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser && globalConfig.smtpPass) {
-    host = globalConfig.smtpHost;
-    port = globalConfig.smtpPort || 587;
-    secure = globalConfig.smtpSecure || false;
-    authUser = globalConfig.smtpUser;
-    authPass = globalConfig.smtpPass;
-    fallbackName = 'Global SMTP';
   } else {
     return null;
   }
@@ -33,7 +31,7 @@ const createTransporter = async (user, globalConfig = null) => {
       user: authUser,
       pass: authPass,
     },
-    family: 4, // Force IPv4 to prevent IPv6 ENETUNREACH issues
+    family: 4,
   });
 };
 
@@ -48,11 +46,11 @@ const sendEmail = async (user, options, globalConfig = null) => {
   let fromAddress;
   let replyTo;
 
-  if (user.smtpHost && user.smtpUser) {
-    fromAddress = user.smtpUser;
-  } else if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser) {
+  if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser) {
     fromAddress = globalConfig.smtpUser;
     replyTo = user.email;
+  } else if (user.smtpHost && user.smtpUser) {
+    fromAddress = user.smtpUser;
   } else {
     fromAddress = user.email;
   }
