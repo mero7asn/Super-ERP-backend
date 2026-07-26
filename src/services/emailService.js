@@ -51,7 +51,7 @@ const sendEmail = async (user, options, globalConfig = null) => {
   if (user.smtpHost && user.smtpUser) {
     fromAddress = user.smtpUser;
   } else if (globalConfig && globalConfig.smtpHost && globalConfig.smtpUser) {
-    fromAddress = user.email;
+    fromAddress = globalConfig.smtpUser;
     replyTo = user.email;
   } else {
     fromAddress = user.email;
@@ -160,8 +160,8 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName, at
     subject,
     text,
     html: html || text,
-    ...(options.attachments && options.attachments.length > 0 ? {
-      attachments: options.attachments.map(att => {
+    ...(attachments && attachments.length > 0 ? {
+      attachments: attachments.map(att => {
         const base64Data = att.url ? att.url.replace(/^data:[^;]+;base64,/, '') : null;
         if (att.cid) {
           return {
