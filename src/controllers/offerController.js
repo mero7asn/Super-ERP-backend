@@ -334,20 +334,49 @@ exports.deleteOffer = async (req, res) => {
   }
 };
 
+const injectOfferImagesBeforePaymentButton = (html, offer, payLink) => {
+  if (!html || typeof html !== 'string' || !offer?.images?.length) return html;
+
+  const imagesHtml = `
+    <div style="margin: 24px 0 28px; text-align: center;">
+      ${offer.images.map((img) => {
+        const imageUrl = img?.url || '';
+        const altText = img?.caption || 'Offer image';
+        return `<img src="${imageUrl}" alt="${altText}" style="display:block;max-width:480px;width:100%;height:auto;margin:0 auto 16px;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 10px 24px rgba(15,23,42,0.08);background:#ffffff;" />`;
+      }).join('')}
+    </div>`;
+
+  if (!payLink) {
+    return html.includes('</body>')
+      ? html.replace('</body>', `${imagesHtml}</body>`)
+      : html.includes('</html>')
+        ? html.replace('</html>', `${imagesHtml}</html>`)
+        : `${html}${imagesHtml}`;
+  }
+
+  const escapedPayLink = payLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(<a[^>]*href=["']${escapedPayLink}["'][^>]*>)`, 'i');
+
+  if (pattern.test(html)) {
+    return html.replace(pattern, `${imagesHtml}$1`);
+  }
+
+  return html.includes('</body>')
+    ? html.replace('</body>', `${imagesHtml}</body>`)
+    : html.includes('</html>')
+      ? html.replace('</html>', `${imagesHtml}</html>`)
+      : `${html}${imagesHtml}`;
+};
+
 const prepareEmailWithCid = (html, branding) => {
   const attachments = [];
   let cidCounter = 0;
 
-  const logoSrcAttr = branding?.companyLogo ? `src="${branding.companyLogo}"` : '';
-  const logoSrcAttrSingle = branding?.companyLogo ? `src='${branding.companyLogo}'` : '';
   const logoPlaceholder = '__SUPER_CRM_LOGO_PLACEHOLDER__';
-
   let htmlWithLogoPlaceholder = html;
-  if (logoSrcAttr) {
-    htmlWithLogoPlaceholder = htmlWithLogoPlaceholder.split(logoSrcAttr).join(logoPlaceholder);
-  }
-  if (logoSrcAttrSingle) {
-    htmlWithLogoPlaceholder = htmlWithLogoPlaceholder.split(logoSrcAttrSingle).join(logoPlaceholder);
+
+  if (branding?.companyLogo && typeof branding.companyLogo === 'string' && branding.companyLogo.startsWith('data:image/')) {
+    htmlWithLogoPlaceholder = htmlWithLogoPlaceholder.split(branding.companyLogo).join(logoPlaceholder);
   }
 
   let modifiedHtml = htmlWithLogoPlaceholder.replace(/src=(["'])(data:image\/[^;]+;base64,[^"']*)\1/g, (match, quote, base64Data) => {
@@ -365,12 +394,15 @@ const prepareEmailWithCid = (html, branding) => {
     return `src=${quote}cid:${cid}${quote}`;
   });
 
-  if (logoSrcAttr || logoSrcAttrSingle) {
-    modifiedHtml = modifiedHtml.split(logoPlaceholder).join(logoSrcAttr || logoSrcAttrSingle);
+  if (branding?.companyLogo && typeof branding.companyLogo === 'string' && branding.companyLogo.startsWith('data:image/')) {
+    modifiedHtml = modifiedHtml.split(logoPlaceholder).join(branding.companyLogo);
   }
 
   return { html: modifiedHtml, attachments };
 };
+
+exports.injectOfferImagesBeforePaymentButton = injectOfferImagesBeforePaymentButton;
+exports.prepareEmailWithCid = prepareEmailWithCid;
 
 // @desc    Send offer via email/SMS
 // @route   POST /api/offers/:id/send
@@ -381,8 +413,11 @@ exports.sendOffer = async (req, res) => {
     const requestedMethod = typeof requestBody.method === 'string' ? requestBody.method : 'Email';
     const { templateId, to, cc, bcc, subject, from, html, attachments: composerAttachments } = requestBody;
     const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+    const parsedComposerAttachments = Array.isArray(composerAttachments)
+      ? composerAttachments
+      : (Array.isArray(requestBody.attachments) ? requestBody.attachments : []);
     console.log('[sendOffer] requestBody keys=%s method=%s files=%d', Object.keys(requestBody).join(','), requestedMethod, uploadedFiles.length);
-    console.log('[sendOffer] attachments=%O', Array.isArray(composerAttachments) ? composerAttachments.map(a => ({ name: a?.name, type: a?.type, url: typeof a?.url === 'string' ? a.url.slice(0, 40) : a?.url })) : 'n/a');
+    console.log('[sendOffer] attachments=%O', parsedComposerAttachments.map(a => ({ name: a?.name, type: a?.type, url: typeof a?.url === 'string' ? a.url.slice(0, 40) : a?.url })));
 
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
@@ -407,9 +442,10 @@ exports.sendOffer = async (req, res) => {
       const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
 
       const emailData = buildOfferEmailData(offer, req, branding, payLink);
+      const leadName = emailData.lead.name || getLeadDisplayName(offer?.lead);
 
       let emailHtml = html || '';
-      let brandedSubject = subject || `New Offer: ${offer.title}`;
+      let brandedSubject = subject || `Professional Offer Proposal for ${leadName}`;
 
       if (!emailHtml) {
         try {
@@ -481,12 +517,12 @@ ${req.user.firstName} ${req.user.lastName}
 <body style="margin:0;padding:0;background-color:#f5f7fb;font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f7fb;padding:24px 0;">
     <tr><td align="center">
-      <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+      <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 14px 40px rgba(15,23,42,0.08);">
         <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#2563eb 100%);padding:28px 32px;color:#ffffff;">
           <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;">
             <tr>
               <td style="vertical-align:middle;padding-right:16px;">
-                ${branding.companyLogo ? `<img src="${branding.companyLogo}" alt="${branding.companyName || 'Logo'}" style="height:56px;width:auto;border-radius:10px;background:rgba(255,255,255,0.15);padding:6px;display:block;" />` : ''}
+                ${branding.companyLogo ? `<img src="${branding.companyLogo}" alt="${branding.companyName || 'Logo'}" style="height:56px;width:56px;object-fit:contain;border-radius:14px;background:rgba(255,255,255,0.16);padding:6px;display:block;" />` : `<div style="width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,0.16);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;">${(branding.companyName || 'SC').slice(0, 2).toUpperCase()}</div>`}
               </td>
               <td style="vertical-align:middle;">
                 <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#bfdbfe;margin-bottom:8px;">Professional Proposal</div>
@@ -499,11 +535,11 @@ ${req.user.firstName} ${req.user.lastName}
         <tr><td style="padding:32px;color:#0f172a;">
           <p style="margin:0 0 12px;font-size:15px;line-height:1.7;">Hello ${leadName},</p>
           <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">We are pleased to share a proposal prepared specifically for your review. The details below outline the offer, pricing, and next steps.</p>
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin:0 0 20px;">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:24px;margin:0 0 20px;">
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;">
               <div>
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#2563eb;">Official Offer</div>
-                <h2 style="margin:8px 0 6px;font-size:22px;color:#111827;">${offer.title}</h2>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#2563eb;background:#dbeafe;padding:4px 8px;border-radius:999px;display:inline-block;">Official Offer</div>
+                <h2 style="margin:10px 0 6px;font-size:22px;color:#111827;">${offer.title}</h2>
               </div>
               <div style="font-size:24px;font-weight:800;color:#2563eb;white-space:nowrap;">${formatCurrency(offer.price)}</div>
             </div>
@@ -513,10 +549,6 @@ ${req.user.firstName} ${req.user.lastName}
               <div><strong>Offer ID:</strong> #${offer._id ? offer._id.toString().slice(-6).toUpperCase() : 'OFFER'}</div>
             </div>
           </div>
-          ${(offer.images && offer.images.length > 0) ? `
-          <div style="text-align:center;margin:0 0 24px;">
-            ${offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="display:inline-block;max-width:420px;width:100%;height:auto;max-height:320px;border-radius:12px;border:1px solid #e5e7eb;object-fit:contain;background:#ffffff;" />`).join('')}
-          </div>` : ''}
           <div style="text-align:center;margin:24px 0 28px;">
             <a href="${payLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:13px 24px;border-radius:999px;font-weight:700;">Review & Pay Online</a>
           </div>
@@ -533,31 +565,7 @@ ${req.user.firstName} ${req.user.lastName}
 
       emailHtml = replaceOfferPlaceholders(emailHtml, emailData);
       brandedSubject = replaceOfferPlaceholders(brandedSubject, emailData);
-
-      if (offer.images && offer.images.length > 0) {
-        const imagesHtml = offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="display:block;max-width:420px;width:100%;height:auto;max-height:320px;margin:0 auto 16px;border-radius:12px;border:1px solid #e5e7eb;object-fit:contain;background:#ffffff;" />`).join('');
-        if (payLink && emailHtml.includes(payLink)) {
-          const escaped = payLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(`(<a[^>]*href=["']${escaped}["'][^>]*>)`, 'i');
-          if (pattern.test(emailHtml)) {
-            emailHtml = emailHtml.replace(pattern, `${imagesHtml}$1`);
-          } else {
-            if (emailHtml.includes('</body>')) {
-              emailHtml = emailHtml.replace('</body>', `${imagesHtml}</body>`);
-            } else if (emailHtml.includes('</html>')) {
-              emailHtml = emailHtml.replace('</html>', `${imagesHtml}</html>`);
-            } else {
-              emailHtml = `${emailHtml}${imagesHtml}`;
-            }
-          }
-        } else if (emailHtml.includes('</body>')) {
-          emailHtml = emailHtml.replace('</body>', `${imagesHtml}</body>`);
-        } else if (emailHtml.includes('</html>')) {
-          emailHtml = emailHtml.replace('</html>', `${imagesHtml}</html>`);
-        } else {
-          emailHtml = `${emailHtml}${imagesHtml}`;
-        }
-      }
+      emailHtml = injectOfferImagesBeforePaymentButton(emailHtml, offer, payLink);
 
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
 
@@ -632,6 +640,7 @@ const OfferTemplate = require('../models/OfferTemplate');
 // @route   GET /api/offers/templates
 // @access  Private
 exports.replaceOfferPlaceholders = replaceOfferPlaceholders;
+exports.injectOfferImagesBeforePaymentButton = injectOfferImagesBeforePaymentButton;
 
 exports.getTemplates = async (req, res) => {
   try {

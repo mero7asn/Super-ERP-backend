@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
 
@@ -310,7 +311,11 @@ exports.addLeadNote = async (req, res) => {
     };
 
     const candidate = await collection.findOne({ _id: objectId }, { projection: { notes: 1 } });
-    if (candidate && typeof candidate.notes === 'string') {
+    const normalizedNotes = Array.isArray(candidate?.notes)
+      ? candidate.notes
+      : (candidate?.notes && typeof candidate.notes === 'object' ? [candidate.notes] : []);
+
+    if (candidate && !Array.isArray(candidate.notes)) {
       await collection.updateOne({ _id: objectId }, { $set: { notes: [] } });
     }
 
