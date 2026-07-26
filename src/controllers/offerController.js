@@ -484,9 +484,18 @@ ${req.user.firstName} ${req.user.lastName}
     <tr><td align="center">
       <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.08);">
         <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#2563eb 100%);padding:28px 32px;color:#ffffff;">
-          <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#bfdbfe;margin-bottom:8px;">Professional Proposal</div>
-          <h1 style="margin:0;font-size:24px;font-weight:700;">${branding.companyName || 'Super CRM'}</h1>
-          <p style="margin:6px 0 0;font-size:14px;color:#dbeafe;">A tailored offer prepared for ${leadName}</p>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;">
+            <tr>
+              <td style="vertical-align:middle;padding-right:16px;">
+                ${branding.companyLogo ? `<img src="${branding.companyLogo}" alt="${branding.companyName || 'Logo'}" style="height:56px;width:auto;border-radius:10px;background:rgba(255,255,255,0.15);padding:6px;display:block;" />` : ''}
+              </td>
+              <td style="vertical-align:middle;">
+                <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#bfdbfe;margin-bottom:8px;">Professional Proposal</div>
+                <h1 style="margin:0;font-size:24px;font-weight:700;">${branding.companyName || 'Super CRM'}</h1>
+                <p style="margin:6px 0 0;font-size:14px;color:#dbeafe;">A tailored offer prepared for ${leadName}</p>
+              </td>
+            </tr>
+          </table>
         </td></tr>
         <tr><td style="padding:32px;color:#0f172a;">
           <p style="margin:0 0 12px;font-size:15px;line-height:1.7;">Hello ${leadName},</p>
@@ -501,8 +510,8 @@ ${req.user.firstName} ${req.user.lastName}
             </div>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#475569;">${offer.description}</p>
             ${(offer.images && offer.images.length > 0) ? `
-            <div style="margin:0 0 16px;display:flex;flex-direction:column;gap:12px;">
-              ${offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;" />`).join('')}
+            <div style="margin:0 0 20px;display:flex;flex-direction:column;gap:14px;">
+              ${offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;max-height:320px;height:auto;width:auto;border-radius:10px;border:1px solid #e5e7eb;object-fit:contain;background:#ffffff;" />`).join('')}
             </div>` : ''}
             <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#64748b;padding-top:12px;border-top:1px dashed #cbd5e1;">
               <div><strong>Valid Until:</strong> ${formatOfferDate(offer.validUntil)}</div>
@@ -525,17 +534,6 @@ ${req.user.firstName} ${req.user.lastName}
 
       emailHtml = replaceOfferPlaceholders(emailHtml, emailData);
       brandedSubject = replaceOfferPlaceholders(brandedSubject, emailData);
-
-      if (offer.images && offer.images.length > 0) {
-        const imagesHtml = offer.images.map(img => `<img src="${img.url}" alt="${img.caption || 'Offer image'}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:12px;" />`).join('');
-        if (emailHtml.includes('</body>')) {
-          emailHtml = emailHtml.replace('</body>', `${imagesHtml}</body>`);
-        } else if (emailHtml.includes('</html>')) {
-          emailHtml = emailHtml.replace('</html>', `${imagesHtml}</html>`);
-        } else {
-          emailHtml = `${emailHtml}${imagesHtml}`;
-        }
-      }
 
       const { html: finalHtml, attachments: cidAttachments } = prepareEmailWithCid(emailHtml, branding);
 
