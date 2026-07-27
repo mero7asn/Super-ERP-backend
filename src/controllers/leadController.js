@@ -138,18 +138,9 @@ exports.getLeads = async (req, res) => {
 // @access  Private
 exports.getLeadById = async (req, res) => {
   try {
-    const leadQuery = Lead.findById(req.params.id);
-    let lead = null;
-
-    if (typeof leadQuery?.populate === 'function') {
-      lead = await leadQuery
-        .populate({ path: 'assignedTo', select: 'firstName lastName email role supervisor', populate: { path: 'supervisor', select: 'firstName lastName' } });
-      if (lead?.populate && typeof lead.populate === 'function') {
-        lead = await lead.populate('campaign', 'name platform');
-      }
-    } else {
-      lead = await leadQuery;
-    }
+    const lead = await Lead.findById(req.params.id)
+      .populate({ path: 'assignedTo', select: 'firstName lastName email role supervisor', populate: { path: 'supervisor', select: 'firstName lastName' } })
+      .populate('campaign', 'name platform');
 
     if (!lead) return res.status(404).json({ message: 'Lead not found' });
 
