@@ -1000,6 +1000,41 @@ exports.getOfferByLocator = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to view this booking' });
     }
 
+  res.json({ success: true, data: offer });
+} catch (error) {
+  res.status(500).json({ message: 'Server Error', error: error.message });
+}
+
+// @desc    Get offer by ID
+// @route   GET /api/offers/:id
+// @access  Private
+exports.getOfferById = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id)
+      .populate('lead', 'name email phone referenceNumber')
+      .populate('createdBy', 'firstName lastName');
+
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isCreator = offer.createdBy && offer.createdBy._id.toString() === req.user._id.toString();
+    const isAssigned = offer.lead && offer.lead.assignedTo && offer.lead.assignedTo.toString() === req.user._id.toString();
+    const isManager = req.user.role === 'Sales Manager';
+
+    if (!isAdmin && !isCreator && !isAssigned) {
+      if (isManager) {
+        const teamAgents = await User.find({ supervisor: req.user._id, role: 'Sales Agent' }).select('_id');
+        const agentIds = teamAgents.map(a => a._id.toString());
+        if (!agentIds.includes(offer.lead?.assignedTo?.toString() || '')) {
+          return res.status(403).json({ message: 'Not authorized to view this offer' });
+        }
+      } else {
+        return res.status(403).json({ message: 'Not authorized to view this offer' });
+      }
+    }
+
     res.json({ success: true, data: offer });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });

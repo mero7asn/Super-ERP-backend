@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getOffersByLead, createOffer, updateOffer, deleteOffer, sendOffer, getTemplates, createTemplate, updateTemplate, deleteTemplate, uploadOfferImage, deleteOfferImage, initiateAvayaCall, getOfferByLocator, getOfferCommunicationLog, addOfferCommunicationReply } = require('../controllers/offerController');
+const { getOffersByLead, createOffer, updateOffer, deleteOffer, sendOffer, getTemplates, createTemplate, updateTemplate, deleteTemplate, uploadOfferImage, deleteOfferImage, initiateAvayaCall, getOfferByLocator, getOfferById, getOfferCommunicationLog, addOfferCommunicationReply } = require('../controllers/offerController');
 const { applyDiscount } = require('../controllers/settingsController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -8,6 +8,7 @@ const uploadAttachment = require('../middleware/uploadAttachment');
 
 router.get('/lead/:leadId', protect, getOffersByLead);
 router.get('/locator/:recordLocator', protect, getOfferByLocator);
+router.get('/:id', protect, getOfferById);
 router.post('/', protect, createOffer);
 router.put('/:id', protect, updateOffer);
 router.delete('/:id', protect, deleteOffer);
