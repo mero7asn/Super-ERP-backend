@@ -39,6 +39,13 @@ exports.createProduct = async (req, res) => {
       return res.status(400).json({ message: 'A valid price is required.' });
     }
 
+    const SystemSetting = require('../models/SystemSetting');
+    const minPriceSetting = await SystemSetting.findOne({ key: 'productPriceMin' });
+    const minPrice = minPriceSetting?.value ?? 0;
+    if (Number(price) < minPrice) {
+      return res.status(400).json({ message: `Minimum price for product is ${Number(minPrice).toFixed(2)}` });
+    }
+
     const existing = await Product.findOne({ sku: sku.trim() });
     if (existing) return res.status(400).json({ message: 'A product with this SKU already exists.' });
 

@@ -266,12 +266,18 @@ exports.getPricingSettings = async (req, res) => {
       SystemSetting.findOne({ key: 'productPriceMin' }),
       SystemSetting.findOne({ key: 'discountOverride' }),
     ]);
+    const offerPriceMin = minOffer?.value ?? 0;
+    const productPriceMin = minProduct?.value ?? 0;
+    const discountOverrideValue = discountOverride?.value ?? false;
     res.json({
       success: true,
       data: {
-        offerPriceMin: minOffer?.value ?? 0,
-        productPriceMin: minProduct?.value ?? 0,
-        discountOverride: discountOverride?.value ?? false,
+        offerPriceMin,
+        productPriceMin,
+        discountOverride: discountOverrideValue,
+        minOfferPrice: offerPriceMin,
+        minProductPrice: productPriceMin,
+        allowDiscountOverride: discountOverrideValue,
       },
     });
   } catch (error) {
@@ -288,11 +294,21 @@ exports.updatePricingSettings = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
-    const { offerPriceMin, productPriceMin, discountOverride } = req.body;
+    const {
+      offerPriceMin,
+      productPriceMin,
+      discountOverride,
+      minOfferPrice,
+      minProductPrice,
+      allowDiscountOverride,
+    } = req.body;
+    const resolvedOfferPriceMin = offerPriceMin ?? minOfferPrice ?? 0;
+    const resolvedProductPriceMin = productPriceMin ?? minProductPrice ?? 0;
+    const resolvedDiscountOverride = discountOverride ?? allowDiscountOverride ?? false;
     const updates = [
-      { key: 'offerPriceMin', value: Number(offerPriceMin) >= 0 ? Number(offerPriceMin) : 0 },
-      { key: 'productPriceMin', value: Number(productPriceMin) >= 0 ? Number(productPriceMin) : 0 },
-      { key: 'discountOverride', value: !!discountOverride },
+      { key: 'offerPriceMin', value: Number(resolvedOfferPriceMin) >= 0 ? Number(resolvedOfferPriceMin) : 0 },
+      { key: 'productPriceMin', value: Number(resolvedProductPriceMin) >= 0 ? Number(resolvedProductPriceMin) : 0 },
+      { key: 'discountOverride', value: !!resolvedDiscountOverride },
     ];
 
     await Promise.all(
