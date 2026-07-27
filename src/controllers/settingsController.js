@@ -195,6 +195,43 @@ exports.getErpConfig = async (req, res) => {
   }
 };
 
+exports.getTelephonyConfig = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+    const setting = await SystemSetting.findOne({ key: 'telephony' });
+    const provider = setting?.value?.provider || 'avaya';
+    res.json({ success: true, data: { provider } });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+exports.updateTelephonyConfig = async (req, res) => {
+  try {
+    if (!['Super CRM Administrator', 'System Architect'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    const { provider } = req.body || {};
+    if (!['avaya', 'cisco'].includes(String(provider || '').toLowerCase())) {
+      return res.status(400).json({ message: 'Select a valid telephony provider.' });
+    }
+
+    const value = { provider: String(provider).toLowerCase() };
+    await SystemSetting.findOneAndUpdate(
+      { key: 'telephony' },
+      { key: 'telephony', value, updatedBy: req.user._id },
+      { new: true, upsert: true }
+    );
+
+    res.json({ success: true, message: 'Telephony provider saved.', data: value });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Save the ERP integration config
 // @route   PUT /api/settings/erp
 // @access  Private (Super Admin only)

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { buildPaymentLink } = require('./paymentController');
 const { getGlobalEmailConfig, sendEmail } = require('../services/emailService');
 const EmailTemplate = require('../models/EmailTemplate');
+const OfferEmail = require('../models/OfferEmail');
 
 const formatCurrency = (value, currencyCode = 'USD', currencySymbol = '') => {
   const numericValue = Number(value);
@@ -455,6 +456,52 @@ exports.injectBrandingHeader = injectBrandingHeader;
 exports.injectOfferImagesBeforePaymentButton = injectOfferImagesBeforePaymentButton;
 exports.prepareEmailWithCid = prepareEmailWithCid;
 
+exports.getOfferCommunicationLog = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id);
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    const logs = await OfferEmail.find({ offerId: offer._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to load offer communications', error: error.message });
+  }
+};
+
+exports.addOfferCommunicationReply = async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id).populate('lead');
+    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+
+    const { body, subject } = req.body || {};
+    if (!body || !String(body).trim()) {
+      return res.status(400).json({ message: 'Reply body is required' });
+    }
+
+    const entry = await OfferEmail.create({
+      offerId: offer._id,
+      leadId: offer.lead._id,
+      direction: 'inbound',
+      subject: subject || 'Customer reply',
+      body: String(body).trim(),
+      status: 'received',
+      senderName: offer.lead?.name || 'Customer',
+      senderEmail: offer.lead?.email || '',
+      recipientEmail: req.user?.email || '',
+      recipientName: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || 'Sales Team',
+      createdBy: req.user?._id || null,
+      metadata: { source: 'offer-thread' },
+    });
+
+    res.status(201).json({ success: true, data: entry });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to save customer reply', error: error.message });
+  }
+};
+
 // @desc    Send offer via email/SMS
 // @route   POST /api/offers/:id/send
 // @access  Private
@@ -698,6 +745,24 @@ ${req.user.firstName} ${req.user.lastName}
     offer.sentAt = new Date();
     offer.sentVia = method;
     await offer.save();
+
+    if (method === 'Email' || method === 'Both') {
+      await OfferEmail.create({
+        offerId: offer._id,
+        leadId: offer.lead._id,
+        direction: 'outbound',
+        subject: brandedSubject || `Offer sent: ${offer.title}`,
+        body: finalHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+        status: emailSent ? 'sent' : 'failed',
+        senderId: req.user._id,
+        senderName: `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || 'Sales Team',
+        senderEmail: senderUser?.email || req.user?.email || '',
+        recipientEmail: to || offer.lead.email,
+        recipientName: offer.lead?.name || 'Lead',
+        createdBy: req.user._id,
+        metadata: { method, subject: brandedSubject },
+      });
+    }
 
     res.json({ success: true, message: `Offer sent via ${method}`, data: offer });
   } catch (error) {
