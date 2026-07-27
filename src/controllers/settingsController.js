@@ -201,8 +201,14 @@ exports.getTelephonyConfig = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const setting = await SystemSetting.findOne({ key: 'telephony' });
-    const provider = setting?.value?.provider || 'avaya';
-    res.json({ success: true, data: { provider } });
+    const value = setting?.value || { provider: 'avaya' };
+    res.json({ success: true, data: {
+      provider: value.provider || 'avaya',
+      serverUrl: value.serverUrl || '',
+      username: value.username || '',
+      extension: value.extension || '',
+      password: value.password ? '********' : '',
+    } });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
@@ -214,12 +220,20 @@ exports.updateTelephonyConfig = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
-    const { provider } = req.body || {};
-    if (!['avaya', 'cisco'].includes(String(provider || '').toLowerCase())) {
+    const { provider, serverUrl, username, password, extension } = req.body || {};
+    if (!['avaya', 'cisco', 'sip'].includes(String(provider || '').toLowerCase())) {
       return res.status(400).json({ message: 'Select a valid telephony provider.' });
     }
 
-    const value = { provider: String(provider).toLowerCase() };
+    const value = {
+      provider: String(provider).toLowerCase(),
+      serverUrl: String(serverUrl || '').trim(),
+      username: String(username || '').trim(),
+      extension: String(extension || '').trim(),
+    };
+    if (password) {
+      value.password = password;
+    }
     await SystemSetting.findOneAndUpdate(
       { key: 'telephony' },
       { key: 'telephony', value, updatedBy: req.user._id },

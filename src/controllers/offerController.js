@@ -8,6 +8,7 @@ const { buildPaymentLink } = require('./paymentController');
 const { getGlobalEmailConfig, sendEmail } = require('../services/emailService');
 const EmailTemplate = require('../models/EmailTemplate');
 const OfferEmail = require('../models/OfferEmail');
+const { initiateTelephonyCall } = require('../services/telephonyService');
 
 const formatCurrency = (value, currencyCode = 'USD', currencySymbol = '') => {
   const numericValue = Number(value);
@@ -941,24 +942,37 @@ exports.initiateAvayaCall = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to call for this offer' });
     }
 
-    const agent = await User.findById(req.user._id);
-    if (!agent?.avayaExtension && !agent?.avayaConfig?.server) {
-      return res.status(400).json({ message: 'Agent is not configured for Avaya calling. Contact Technology team.' });
-    }
+    const telephonySetting = await SystemSetting.findOne({ key: 'telephony' });
+    const provider = String(req.body?.provider || telephonySetting?.value?.provider || 'avaya').toLowerCase();
+    const config = telephonySetting?.value || {};
+    const phoneNumber = String(req.body?.phone || offer?.lead?.phone || '').trim();
 
-    if (!offer.lead?.phone) {
+    if (!phoneNumber) {
       return res.status(400).json({ message: 'Lead does not have a phone number configured' });
     }
 
-    // TODO: Integrate with actual Avaya API
-    // This would typically trigger a call through Avaya's telephony system
-    console.log(`[Avaya Call] Agent: ${agent.avayaExtension}, Calling: ${offer.lead.phone}`);
-    console.log(`[Avaya Call] Lead: ${offer.lead.name}, Offer: ${offer.title}`);
+    const agent = await User.findById(req.user._id);
+    const extension = agent?.avayaExtension || agent?.ciscoExtension || agent?.extension || '';
+
+    const result = await initiateTelephonyCall({
+      config: { ...config, provider, extension },
+      phoneNumber,
+      agentExtension: extension,
+    });
+
+    console.log(`[${provider.toUpperCase()} Call] ${result.message}`);
+    console.log(`[${provider.toUpperCase()} Call] Lead: ${offer.lead.name}, Offer: ${offer.title}`);
 
     res.json({
       success: true,
-      message: `Call initiated to ${offer.lead.phone}`,
-      data: { leadPhone: offer.lead.phone, agentExtension: agent.avayaExtension }
+      message: result.message || `Call initiated to ${phoneNumber}`,
+      data: {
+        leadPhone: phoneNumber,
+        provider,
+        agentExtension: extension,
+        telephonyStatus: result.status,
+        callId: result.callId,
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to initiate call', error: error.message });
