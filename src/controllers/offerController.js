@@ -1000,10 +1000,11 @@ exports.getOfferByLocator = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to view this booking' });
     }
 
-  res.json({ success: true, data: offer });
-} catch (error) {
-  res.status(500).json({ message: 'Server Error', error: error.message });
-}
+   res.json({ success: true, data: offer });
+ } catch (error) {
+   res.status(500).json({ message: 'Server Error', error: error.message });
+ }
+};
 
 // @desc    Get offer by ID
 // @route   GET /api/offers/:id
