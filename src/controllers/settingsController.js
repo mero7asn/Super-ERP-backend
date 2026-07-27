@@ -330,10 +330,20 @@ exports.getCurrencies = async (req, res) => {
   try {
     const setting = await SystemSetting.findOne({ key: 'currencies' });
     const defaultSetting = await SystemSetting.findOne({ key: 'defaultCurrency' });
+    const currencies = Array.isArray(setting?.value)
+      ? setting.value
+          .filter((c) => c && c.code)
+          .map((c) => ({
+            code: String(c.code).trim().toUpperCase(),
+            name: String(c.name || c.code).trim(),
+            symbol: String(c.symbol || '').trim(),
+            rate: Number(c.rate) || 0,
+          }))
+      : [];
     res.json({
       success: true,
       data: {
-        currencies: setting?.value || [],
+        currencies,
         defaultCurrency: defaultSetting?.value || 'USD',
       },
     });
@@ -352,10 +362,26 @@ exports.updateCurrencies = async (req, res) => {
     }
 
     const { currencies, defaultCurrency } = req.body;
-    const safeCurrencies = Array.isArray(currencies) ? currencies.filter((c) => c && c.code && c.name && c.symbol) : [];
+    const normalizedCurrencies = Array.isArray(currencies)
+      ? currencies
+          .filter((c) => c && c.code && c.name)
+          .map((c) => ({
+            code: String(c.code).trim().toUpperCase(),
+            name: String(c.name).trim(),
+            symbol: String(c.symbol || '').trim(),
+            rate: Number(c.rate) || 0,
+          }))
+      : [];
+    const uniqueCurrencies = [];
+    const seen = new Set();
+    normalizedCurrencies.forEach((currency) => {
+      if (!currency.code || seen.has(currency.code)) return;
+      seen.add(currency.code);
+      uniqueCurrencies.push(currency);
+    });
 
     await Promise.all([
-      SystemSetting.findOneAndUpdate({ key: 'currencies' }, { key: 'currencies', value: safeCurrencies, updatedBy: req.user._id }, { new: true, upsert: true }),
+      SystemSetting.findOneAndUpdate({ key: 'currencies' }, { key: 'currencies', value: uniqueCurrencies, updatedBy: req.user._id }, { new: true, upsert: true }),
       SystemSetting.findOneAndUpdate({ key: 'defaultCurrency' }, { key: 'defaultCurrency', value: defaultCurrency || 'USD', updatedBy: req.user._id }, { new: true, upsert: true }),
     ]);
 
