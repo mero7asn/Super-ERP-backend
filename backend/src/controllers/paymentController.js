@@ -1,4 +1,4 @@
-const Offer = require('../models/Offer');
+﻿const Offer = require('../models/Offer');
 const OfferHistory = require('../models/OfferHistory');
 const Booking = require('../models/Booking');
 const Lead = require('../models/Lead');
@@ -157,7 +157,7 @@ You can view or revisit your offer anytime here:
 ${payLink}
 
 Best regards,
-Super CRM Team
+Core 360 Team
         `.trim();
 
         const html = `
@@ -181,7 +181,7 @@ Super CRM Team
               <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Amount Paid <strong style="color:#334155;">$${Number(offer.price).toLocaleString()}</strong> via ${method}</p>
             </td></tr>
           </table>
-          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>Super CRM Team</strong></p>
+          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>Core 360 Team</strong></p>
         </td></tr>
       </table>
     </td></tr>

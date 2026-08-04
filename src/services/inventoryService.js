@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const crypto = require('crypto');
 const StockTransaction = require('../models/StockTransaction');
 const StockLevel = require('../models/StockLevel');
@@ -14,7 +14,7 @@ const InventoryAdjustment = require('../models/InventoryAdjustment');
 const StockTransfer = require('../models/StockTransfer');
 
 const INVENTORY_ROLES = [
-  'Super CRM Administrator',
+  'Core 360 Administrator',
   'System Architect',
   'Inventory Manager',
   'Warehouse Manager',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { DEPARTMENTS } from '../../services/departmentJobs';
@@ -161,7 +161,7 @@ const TrainingPage = () => {
     }
   };
 
-  const isHR = ['HRM System Administrator', 'HR Manager', 'Training and Development Specialist', 'Super CRM Administrator'].includes(user?.role);
+  const isHR = ['HRM System Administrator', 'HR Manager', 'Training and Development Specialist', 'Core 360 Administrator'].includes(user?.role);
 
   // Derive departments for filter dropdowns
   const deptOptions = useMemo(() => {

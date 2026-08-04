@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import API from '../services/api';
 import logo from '../assets/logo.png';
@@ -59,7 +59,7 @@ const CampaignFormPage = () => {
             fontSize: 18, fontWeight: 700,
             background: 'linear-gradient(135deg, #2563EB, #14B8A6)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>Super CRM</span>
+          }}>Core 360</span>
         </div>
 
         {loading ? (

@@ -1,4 +1,4 @@
-const Offer = require('../models/Offer');
+﻿const Offer = require('../models/Offer');
 const OfferHistory = require('../models/OfferHistory');
 const Booking = require('../models/Booking');
 const Lead = require('../models/Lead');
@@ -56,7 +56,7 @@ exports.getPublicOfferByToken = async (req, res) => {
     }
 
     const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
-    const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+    const branding = brandingSetting?.value || { companyName: 'Core 360', companyLogo: '' };
 
     res.json({
       success: true,
@@ -68,7 +68,7 @@ exports.getPublicOfferByToken = async (req, res) => {
         validUntil: offer.validUntil,
         leadName: offer.lead ? offer.lead.name : '',
         agentName: offer.createdBy ? `${offer.createdBy.firstName} ${offer.createdBy.lastName}` : '',
-        companyName: branding.companyName || 'Super CRM',
+        companyName: branding.companyName || 'Core 360',
         companyLogo: branding.companyLogo || ''
       }
     });
@@ -166,9 +166,9 @@ exports.processPublicPayment = async (req, res) => {
       const lead = await Lead.findById(offer.lead);
       if (lead && lead.email) {
         const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
-        const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+        const branding = brandingSetting?.value || { companyName: 'Core 360', companyLogo: '' };
         const payLink = buildPaymentLink(offer.paymentToken);
-        const subject = `${branding.companyName || 'Super CRM'} — Payment Confirmed`;
+        const subject = `${branding.companyName || 'Core 360'} — Payment Confirmed`;
         const text = `
 Hello ${lead.name},
 
@@ -183,7 +183,7 @@ You can view or revisit your offer anytime here:
 ${payLink}
 
 Best regards,
-${branding.companyName || 'Super CRM'}
+${branding.companyName || 'Core 360'}
         `.trim();
 
         const html = `
@@ -207,7 +207,7 @@ ${branding.companyName || 'Super CRM'}
               <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Amount Paid <strong style="color:#334155;">$${Number(offer.price).toLocaleString()}</strong> via ${method}</p>
             </td></tr>
           </table>
-          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${branding.companyName || 'Super CRM'}</strong></p>
+          <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${branding.companyName || 'Core 360'}</strong></p>
         </td></tr>
       </table>
     </td></tr>

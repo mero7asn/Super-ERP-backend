@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import AuxTopBar from './components/AuxTopBar';
@@ -54,7 +54,7 @@ const AppRoutes = () => {
   const { user } = useAuth();
 
   const analyticsRoles = [
-    'Super CRM Administrator', 'Executive User',
+    'Core 360 Administrator', 'Executive User',
     'Business Analyst', 'System Architect'
   ];
 
@@ -99,7 +99,7 @@ const AppRoutes = () => {
         path="/leads/distribution"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'System Architect', 'Sales Manager'
+            'Core 360 Administrator', 'System Architect', 'Sales Manager'
           ]}>
             <AppLayout>
               <LeadDistributionPage />
@@ -139,7 +139,7 @@ const AppRoutes = () => {
             <ProtectedRoute allowedRoles={[
               'Sales Agent', 'Sales Manager',
               'Customer Support Agent', 'Customer Support Manager',
-              'CRM Developer', 'CRM Consultant', 'System Architect', 'Super CRM Administrator'
+              'CRM Developer', 'CRM Consultant', 'System Architect', 'Core 360 Administrator'
             ]}>
               <AppLayout>
                 <BookingLookupPage />
@@ -165,7 +165,7 @@ const AppRoutes = () => {
         path="/kanban"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'Sales Agent', 'Sales Manager',
+            'Core 360 Administrator', 'Sales Agent', 'Sales Manager',
             'Executive User', 'System Architect', 'Business Analyst'
           ]}>
             <AppLayout>
@@ -180,7 +180,7 @@ const AppRoutes = () => {
         path="/executive"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'Executive User',
+            'Core 360 Administrator', 'Executive User',
             'Business Analyst', 'System Architect'
           ]}>
             <AppLayout>
@@ -195,7 +195,7 @@ const AppRoutes = () => {
         path="/campaigns"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'Marketing Specialist',
+            'Core 360 Administrator', 'Marketing Specialist',
             'Marketing Manager', 'Executive User', 'Business Analyst', 'System Architect'
           ]}>
             <AppLayout>
@@ -210,7 +210,7 @@ const AppRoutes = () => {
         path="/teams"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'System Architect',
+            'Core 360 Administrator', 'System Architect',
             'Sales Manager', 'Sales Agent',
             'Customer Support Manager', 'Customer Support Agent',
             'Marketing Manager', 'Marketing Specialist'
@@ -225,7 +225,7 @@ const AppRoutes = () => {
         path="/teams/my"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'System Architect',
+            'Core 360 Administrator', 'System Architect',
             'Sales Manager', 'Sales Agent',
             'Customer Support Manager', 'Customer Support Agent',
             'Marketing Manager', 'Marketing Specialist'
@@ -240,7 +240,7 @@ const AppRoutes = () => {
         path="/teams/all"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'System Architect',
+            'Core 360 Administrator', 'System Architect',
             'Sales Manager', 'Sales Agent',
             'Customer Support Manager', 'Customer Support Agent',
             'Marketing Manager', 'Marketing Specialist'
@@ -256,7 +256,7 @@ const AppRoutes = () => {
       <Route
         path="/users"
         element={
-          <ProtectedRoute allowedRoles={['Super CRM Administrator', 'System Architect']}>
+          <ProtectedRoute allowedRoles={['Core 360 Administrator', 'System Architect']}>
             <AppLayout>
               <UsersPage />
             </AppLayout>
@@ -280,7 +280,7 @@ const AppRoutes = () => {
       <Route
         path="/settings"
         element={
-          <ProtectedRoute allowedRoles={['Super CRM Administrator']}>
+          <ProtectedRoute allowedRoles={['Core 360 Administrator']}>
             <AppLayout>
               <SettingsPage />
             </AppLayout>
@@ -317,7 +317,7 @@ const AppRoutes = () => {
         path="/rtm"
         element={
           <ProtectedRoute allowedRoles={[
-            'RTM Team Member', 'Super CRM Administrator',
+            'RTM Team Member', 'Core 360 Administrator',
             'HRM System Administrator', 'HR Manager'
           ]}>
             <AppLayout>
@@ -344,7 +344,7 @@ const AppRoutes = () => {
         path="/hrm/personal"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Core 360 Administrator', 'HRM System Administrator', 'HR Manager',
             'HR Specialist (Generalist)', 'HR Business Partner', 'Employee (General User)'
           ]}>
             <AppLayout>
@@ -359,7 +359,7 @@ const AppRoutes = () => {
         path="/hrm/payroll"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Core 360 Administrator', 'HRM System Administrator', 'HR Manager',
             'Payroll Specialist', 'Employee (General User)'
           ]}>
             <AppLayout>
@@ -398,7 +398,7 @@ const AppRoutes = () => {
         path="/hrm/training"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Core 360 Administrator', 'HRM System Administrator', 'HR Manager',
             'Training and Development Specialist', 'Employee (General User)'
           ]}>
             <AppLayout>
@@ -413,7 +413,7 @@ const AppRoutes = () => {
         path="/hrm/talent"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Core 360 Administrator', 'HRM System Administrator', 'HR Manager',
             'Recruitment Specialist (Talent Acquisition)'
           ]}>
             <AppLayout>
@@ -428,7 +428,7 @@ const AppRoutes = () => {
         path="/hrm/partnerships"
         element={
           <ProtectedRoute allowedRoles={[
-            'Super CRM Administrator', 'HRM System Administrator', 'HR Manager',
+            'Core 360 Administrator', 'HRM System Administrator', 'HR Manager',
             'HR Business Partner', 'Employee (General User)'
           ]}>
             <AppLayout>
@@ -442,7 +442,7 @@ const AppRoutes = () => {
       <Route
         path="/devtools"
         element={
-          <ProtectedRoute allowedRoles={['CRM Developer', 'System Architect', 'Super CRM Administrator']}>
+          <ProtectedRoute allowedRoles={['CRM Developer', 'System Architect', 'Core 360 Administrator']}>
             <AppLayout>
               <DevToolsPage />
             </AppLayout>

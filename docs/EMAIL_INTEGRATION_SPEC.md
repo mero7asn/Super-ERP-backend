@@ -1,8 +1,8 @@
-# Email Integration Module — Technical Specification
+﻿# Email Integration Module — Technical Specification
 
 ## 1. Overview
 
-The Email Integration Module enables the Super CRM system to send real outbound emails through user-configured SMTP providers. It supports personal email accounts (Gmail, Outlook) and enterprise providers (Google Workspace, Microsoft 365). The sender identity of each outgoing message is derived automatically from the authenticated user's CRM login and SMTP configuration, ensuring the recipient sees the correct sender address. Additionally, the module provides a Sent History feature that renders previously sent offers and emails in a UI that closely mimics the recipient's email-client experience.
+The Email Integration Module enables the Core 360 system to send real outbound emails through user-configured SMTP providers. It supports personal email accounts (Gmail, Outlook) and enterprise providers (Google Workspace, Microsoft 365). The sender identity of each outgoing message is derived automatically from the authenticated user's CRM login and SMTP configuration, ensuring the recipient sees the correct sender address. Additionally, the module provides a Sent History feature that renders previously sent offers and emails in a UI that closely mimics the recipient's email-client experience.
 
 ## 2. Supported Providers
 

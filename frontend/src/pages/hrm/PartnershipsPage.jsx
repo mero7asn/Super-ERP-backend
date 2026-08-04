@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -55,7 +55,7 @@ const PartnershipsPage = () => {
   const [suggDetails, setSuggDetails] = useState('');
   const [submittingSugg, setSubmittingSugg] = useState(false);
 
-  const isBD = ['HRM System Administrator', 'HR Manager', 'HR Business Partner', 'Super CRM Administrator'].includes(user?.role);
+  const isBD = ['HRM System Administrator', 'HR Manager', 'HR Business Partner', 'Core 360 Administrator'].includes(user?.role);
 
   const fetchAll = async () => {
     setLoading(true);

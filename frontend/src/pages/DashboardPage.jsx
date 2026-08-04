@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Icon } from '../components/Icons';
 import API from '../services/api';
@@ -9,7 +9,7 @@ const ROLE_GROUPS = {
   support: ['Customer Support Agent', 'Customer Support Manager'],
   marketing: ['Marketing Specialist', 'Marketing Manager'],
   analytics: ['Business Analyst', 'Executive User'],
-  admin: ['Super CRM Administrator', 'System Architect', 'CRM Developer', 'CRM Consultant'],
+  admin: ['Core 360 Administrator', 'System Architect', 'CRM Developer', 'CRM Consultant'],
 };
 
 const getRoleGroup = (role) => {
@@ -65,7 +65,7 @@ const DashboardPage = () => {
           API.get('/leads').catch(() => ({ data: { data: [] } })),
           API.get('/tickets').catch(() => ({ data: { data: [] } })),
           API.get('/campaigns').catch(() => ({ data: { data: [] } })),
-          ['Super CRM Administrator', 'System Architect'].includes(user?.role) 
+          ['Core 360 Administrator', 'System Architect'].includes(user?.role) 
             ? API.get('/auth/users').catch(() => ({ data: { data: [] } }))
             : Promise.resolve({ data: { data: [] } })
         ]);

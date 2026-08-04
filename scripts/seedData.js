@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const User = require('../src/models/User');
 const Lead = require('../src/models/Lead');
 const Ticket = require('../src/models/Ticket');
@@ -15,7 +15,7 @@ const seedData = async () => {
 
     console.log('Finding users...');
     const executive = await User.findOne({ role: 'Executive User' });
-    const admin = await User.findOne({ role: 'Super CRM Administrator' });
+    const admin = await User.findOne({ role: 'Core 360 Administrator' });
     const salesManager = await User.findOne({ role: 'Sales Manager' });
     const marketingManager = await User.findOne({ role: 'Marketing Manager' });
     const supportManager = await User.findOne({ role: 'Customer Support Manager' });

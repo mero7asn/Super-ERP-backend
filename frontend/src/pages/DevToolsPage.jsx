@@ -1,11 +1,11 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Icon } from '../components/Icons';
 
 const DevToolsPage = () => {
   const [logs, setLogs] = useState([
     '⚙️ CRM System Developer Environment Initialized.',
     '🔌 DB Connection established: crm_prod_replica',
-    '🛡️ Active permissions session: Super CRM Administrator',
+    '🛡️ Active permissions session: Core 360 Administrator',
     '📊 API Gateway status: 200 OK (5.2ms latency)'
   ]);
   const [isSeeding, setIsSeeding] = useState(false);

@@ -1,4 +1,4 @@
-export const DEPARTMENTS = [
+﻿export const DEPARTMENTS = [
   {
     id: 'Sales',
     label: '💼 Sales',
@@ -22,7 +22,7 @@ export const DEPARTMENTS = [
   {
     id: 'Executive',
     label: '🏛 Executive',
-    roles: ['Executive User', 'Super CRM Administrator'],
+    roles: ['Executive User', 'Core 360 Administrator'],
   },
   {
     id: 'Human Resources',

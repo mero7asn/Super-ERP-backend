@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
@@ -10,7 +10,7 @@ const LeadDistributionPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(user?.role);
+  const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(user?.role);
   const isManager = user?.role === 'Sales Manager';
 
   useEffect(() => {

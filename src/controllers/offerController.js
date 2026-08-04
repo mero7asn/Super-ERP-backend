@@ -1,4 +1,4 @@
-const Offer = require('../models/Offer');
+﻿const Offer = require('../models/Offer');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
 const SystemSetting = require('../models/SystemSetting');
@@ -47,7 +47,7 @@ const buildOfferEmailData = (offer, req, branding, payLink) => {
   const senderLast = req?.user?.lastName || '';
 
   return {
-    companyName: branding?.companyName || 'Super CRM',
+    companyName: branding?.companyName || 'Core 360',
     companyLogo: branding?.companyLogo || '',
     currency: offer?.currency || 'USD',
     currencySymbol: offer?.currencySymbol || '',
@@ -71,7 +71,7 @@ const buildOfferEmailData = (offer, req, branding, payLink) => {
     sender: {
       firstName: senderFirst,
       lastName: senderLast,
-      name: [senderFirst, senderLast].filter(Boolean).join(' ') || 'Super CRM Team',
+      name: [senderFirst, senderLast].filter(Boolean).join(' ') || 'Core 360 Team',
     },
   };
 };
@@ -120,7 +120,7 @@ exports.getOffersByLead = async (req, res) => {
     const lead = await Lead.findById(req.params.leadId);
     if (!lead) return res.status(404).json({ message: 'Lead not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
@@ -217,7 +217,7 @@ exports.createOffer = async (req, res) => {
       }
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
@@ -300,7 +300,7 @@ exports.updateOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -345,7 +345,7 @@ exports.deleteOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -362,7 +362,7 @@ exports.deleteOffer = async (req, res) => {
 const injectBrandingHeader = (html, branding) => {
   if (!html || typeof html !== 'string') return html;
 
-  const companyName = branding?.companyName || 'Super CRM';
+  const companyName = branding?.companyName || 'Core 360';
   const companyLogo = branding?.companyLogo || '';
 
   if (!companyName && !companyLogo) return html;
@@ -521,7 +521,7 @@ exports.sendOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy._id.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -538,7 +538,7 @@ exports.sendOffer = async (req, res) => {
 
     if (method === 'Email' || method === 'Both') {
       const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
-      const branding = brandingSetting?.value || { companyName: 'Super CRM', companyLogo: '' };
+      const branding = brandingSetting?.value || { companyName: 'Core 360', companyLogo: '' };
 
       const emailData = buildOfferEmailData(offer, req, branding, payLink);
       const offerCurrency = offer?.currency || 'USD';
@@ -546,7 +546,7 @@ exports.sendOffer = async (req, res) => {
       const leadName = emailData.lead.name || getLeadDisplayName(offer?.lead);
 
       let emailHtml = html || '';
-      let brandedSubject = subject || `Your offer is ready from ${branding.companyName || 'Super CRM'}`;
+      let brandedSubject = subject || `Your offer is ready from ${branding.companyName || 'Core 360'}`;
 
       if (!emailHtml) {
         try {
@@ -565,7 +565,7 @@ exports.sendOffer = async (req, res) => {
           if (userTemplate) {
             const { replacePlaceholders, renderTemplateBlocks } = require('./templateController');
             const templateData = {
-              companyName: branding.companyName || 'Super CRM',
+              companyName: branding.companyName || 'Core 360',
               companyLogo: branding.companyLogo || '',
               lead: {
                 name: offer.lead?.name || getLeadDisplayName(offer.lead),
@@ -596,7 +596,7 @@ exports.sendOffer = async (req, res) => {
         const emailBody = `
 Hello ${leadName},
 
-We have prepared a tailored offer for you from ${branding.companyName || 'Super CRM'}.
+We have prepared a tailored offer for you from ${branding.companyName || 'Core 360'}.
 
 ${offer.title}
 ${offer.description}
@@ -631,7 +631,7 @@ ${req.user.firstName} ${req.user.lastName}
                   <td style="text-align:center;">
                     ${branding.companyLogo ? `<img src="${branding.companyLogo}" alt="${branding.companyName || 'Company logo'}" style="height:50px;width:auto;max-width:180px;display:block;margin:0 auto 16px;border:0;" />` : `<div style="height:50px;width:50px;line-height:50px;text-align:center;border-radius:50%;background:#d6a24c;color:#ffffff;font-weight:700;font-size:18px;margin:0 auto 16px;">${(branding.companyName || 'SC').slice(0, 2).toUpperCase()}</div>`}
                     <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#d6a24c;font-weight:700;margin-bottom:6px;">Professional Offer</div>
-                    <div style="font-size:24px;font-weight:700;color:#333333;">${branding.companyName || 'Super CRM'}</div>
+                    <div style="font-size:24px;font-weight:700;color:#333333;">${branding.companyName || 'Core 360'}</div>
                   </td>
                 </tr>
               </table>
@@ -666,7 +666,7 @@ ${req.user.firstName} ${req.user.lastName}
               <div style="border-top:1px solid #eeeeee;padding-top:24px;margin-top:12px;font-size:14px;line-height:1.7;color:#666666;">
                 Best regards,<br />
                 <strong>${req.user.firstName} ${req.user.lastName}</strong><br />
-                ${branding.companyName || 'Super CRM'}
+                ${branding.companyName || 'Core 360'}
               </div>
             </td>
           </tr>
@@ -828,7 +828,7 @@ exports.updateTemplate = async (req, res) => {
     const template = await OfferTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && template.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this template' });
     }
@@ -860,7 +860,7 @@ exports.deleteTemplate = async (req, res) => {
     const template = await OfferTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && template.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this template' });
     }
@@ -880,7 +880,7 @@ exports.uploadOfferImage = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -911,7 +911,7 @@ exports.deleteOfferImage = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -935,7 +935,7 @@ exports.initiateAvayaCall = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -993,7 +993,7 @@ exports.getOfferByLocator = async (req, res) => {
     }
 
     // Allow access to ticket creator, assigned agent, or admins
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isCreator = offer.createdBy._id.toString() === req.user._id.toString();
 
     if (!isAdmin && !isCreator) {
@@ -1019,7 +1019,7 @@ exports.getOfferById = async (req, res) => {
       return res.status(404).json({ message: 'Offer not found' });
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isCreator = offer.createdBy && offer.createdBy._id.toString() === req.user._id.toString();
     const isAssigned = offer.lead && offer.lead.assignedTo && offer.lead.assignedTo.toString() === req.user._id.toString();
     const isManager = req.user.role === 'Sales Manager';

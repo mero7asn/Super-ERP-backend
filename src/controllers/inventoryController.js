@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const InventoryItem = require('../models/InventoryItem');
 const Warehouse = require('../models/Warehouse');
 const StockLevel = require('../models/StockLevel');
@@ -129,7 +129,7 @@ exports.updateInventoryItem = async (req, res) => {
 exports.deleteInventoryItem = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only administrators can delete inventory items.' });
 
     const item = await InventoryItem.findById(req.params.id);
@@ -716,7 +716,7 @@ exports.getSerials = async (req, res) => {
 exports.approveAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can approve adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);
@@ -737,7 +737,7 @@ exports.approveAdjustment = async (req, res) => {
 exports.rejectAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can reject adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);

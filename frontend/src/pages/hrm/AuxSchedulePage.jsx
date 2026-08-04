@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { AUX_COLORS } from '../../context/AuxContext';
@@ -49,7 +49,7 @@ const getWeeksOfMonth = (month) => {
 
 const AuxSchedulePage = () => {
   const { user } = useAuth();
-  const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Attendance and Time Officer', 'HR Director / Executive HR User'].includes(user?.role);
+  const isHR = ['HRM System Administrator', 'HR Manager', 'Core 360 Administrator', 'Attendance and Time Officer', 'HR Director / Executive HR User'].includes(user?.role);
   const isRTM = user?.role === 'RTM Team Member';
   const canManageSchedules = isHR; // only HR can edit schedules
 

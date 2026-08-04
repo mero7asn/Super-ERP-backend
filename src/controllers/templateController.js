@@ -1,4 +1,4 @@
-const EmailTemplate = require('../models/EmailTemplate');
+﻿const EmailTemplate = require('../models/EmailTemplate');
 
 // @desc    Get all email templates
 // @route   GET /api/templates
@@ -67,7 +67,7 @@ exports.updateTemplate = async (req, res) => {
     const template = await EmailTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = template.createdBy.toString() === req.user._id.toString();
 
     if (!isOwner && !isAdmin) {
@@ -89,7 +89,7 @@ exports.deleteTemplate = async (req, res) => {
     const template = await EmailTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = template.createdBy.toString() === req.user._id.toString();
 
     if (!isOwner && !isAdmin) {
@@ -111,7 +111,7 @@ exports.setDefaultTemplate = async (req, res) => {
     const template = await EmailTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin) {
       return res.status(403).json({ message: 'Only admins can set default templates' });
     }
@@ -135,7 +135,7 @@ exports.renderTemplate = async (req, res) => {
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
     const sampleData = req.body.sampleData || {
-      companyName: 'Super CRM',
+      companyName: 'Core 360',
       companyLogo: '',
       lead: { name: 'John Doe', email: 'john@example.com' },
       offer: { title: 'Premium Service Package', description: 'A comprehensive service solution tailored to your needs.', price: 2999, validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
@@ -229,7 +229,7 @@ function renderTemplateBlocks(blocks, data) {
         return `<div style="margin:0 0 16px;text-align:${payAlign};"><a href="${payUrl}" style="display:inline-block;background-color:${payBg};color:${payColor};text-decoration:none;padding:14px 24px;border-radius:8px;font-weight:600;">${payText}</a></div>`;
 
       case 'company-info':
-        const compName = data.companyName || 'Super CRM';
+        const compName = data.companyName || 'Core 360';
         const compLogo = data.companyLogo || '';
         return `
           <div style="margin:0 0 16px;display:flex;align-items:center;gap:12px;">

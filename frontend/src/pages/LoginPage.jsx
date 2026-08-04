@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.png';
@@ -26,8 +26,8 @@ const LoginPage = () => {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <img src={logo} alt="Super CRM" style={{ height: 38 }} />
-          <span className="auth-logo-text">Super CRM</span>
+          <img src={logo} alt="Core 360" style={{ height: 38 }} />
+          <span className="auth-logo-text">Core 360</span>
         </div>
 
         <h1 className="auth-title">Welcome back</h1>

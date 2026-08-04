@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -10,7 +10,7 @@ const PAYROLL_ROLES = [
   'HR Manager',
   'HR Director / Executive HR User',
   'HRM System Administrator',
-  'Super CRM Administrator',
+  'Core 360 Administrator',
 ];
 const isPayrollMgr = (role) => PAYROLL_ROLES.includes(role);
 
@@ -81,7 +81,7 @@ const MetricCard = ({ icon, label, value, sub }) => (
 const PayrollPage = () => {
   const { user } = useAuth();
   const isMgr = isPayrollMgr(user?.role);
-  const isSenior = ['HR Manager', 'HR Director / Executive HR User', 'HRM System Administrator', 'Super CRM Administrator'].includes(user?.role);
+  const isSenior = ['HR Manager', 'HR Director / Executive HR User', 'HRM System Administrator', 'Core 360 Administrator'].includes(user?.role);
 
   // ── Tab State ──
   const TABS = [

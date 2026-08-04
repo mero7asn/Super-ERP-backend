@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import logo from '../assets/logo.png';
@@ -86,7 +86,7 @@ const PaymentPage = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
           <img src={logo} alt="Logo" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-          <span style={{ fontSize: 18, fontWeight: 700, background: 'linear-gradient(135deg, #2563EB, #14B8A6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Super CRM</span>
+          <span style={{ fontSize: 18, fontWeight: 700, background: 'linear-gradient(135deg, #2563EB, #14B8A6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Core 360</span>
         </div>
 
         {error && (

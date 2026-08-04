@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
@@ -22,7 +22,7 @@ const LeadDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(user?.role);
+  const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(user?.role);
   
   const [lead, setLead] = useState(null);
   const [offers, setOffers] = useState([]);

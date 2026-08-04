@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { DEPARTMENTS } from '../../services/departmentJobs';
@@ -193,7 +193,7 @@ const TalentAcquisitionPage = () => {
   const [feedbackNote, setFeedbackNote] = useState('');
   const [savingFeedback, setSavingFeedback] = useState(false);
 
-  const isTA = ['HRM System Administrator', 'HR Manager', 'Recruitment Specialist (Talent Acquisition)', 'Super CRM Administrator'].includes(user?.role);
+  const isTA = ['HRM System Administrator', 'HR Manager', 'Recruitment Specialist (Talent Acquisition)', 'Core 360 Administrator'].includes(user?.role);
 
   const fetchAll = async () => {
     setLoading(true);

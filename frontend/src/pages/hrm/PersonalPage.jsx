@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { DEPARTMENTS } from '../../services/departmentJobs';
@@ -121,8 +121,8 @@ const PersonalPage = () => {
   // Leave balance
   const [leaveBalance, setLeaveBalance] = useState(null);
 
-  const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'Super CRM Administrator', 'HR Director / Executive HR User'].includes(user?.role);
-  const isSuperAdmin = ['Super CRM Administrator', 'HRM System Administrator'].includes(user?.role);
+  const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'Core 360 Administrator', 'HR Director / Executive HR User'].includes(user?.role);
+  const isSuperAdmin = ['Core 360 Administrator', 'HRM System Administrator'].includes(user?.role);
 
   // Dynamic role list based on selected department filter
   const availableRoles = (() => {

@@ -1,4 +1,4 @@
-const SystemSetting = require('../models/SystemSetting');
+﻿const SystemSetting = require('../models/SystemSetting');
 const { decrypt } = require('./encryption');
 
 const createTransporter = async (user, globalConfig = null) => {
@@ -43,7 +43,7 @@ const sendEmail = async (user, options, globalConfig = null) => {
     throw new Error('SMTP is not configured for this user and no global SMTP relay is available');
   }
 
-  const fromName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Super CRM User';
+  const fromName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Core 360 User';
   let fromAddress;
   let replyTo;
 
@@ -119,7 +119,7 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress }) => {
   });
 
   const info = await transport.sendMail({
-    from: fromAddress || `"Super CRM" <${cfg.smtpUser}>`,
+    from: fromAddress || `"Core 360" <${cfg.smtpUser}>`,
     to,
     subject,
     text,

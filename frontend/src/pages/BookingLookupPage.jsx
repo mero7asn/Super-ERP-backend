@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Icon } from '../components/Icons';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -19,7 +19,7 @@ const BookingLookupPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const canAccess = ['Sales Agent', 'Sales Manager', 'Customer Support Agent', 'Customer Support Manager', 'CRM Developer', 'CRM Consultant', 'System Architect', 'Super CRM Administrator'].includes(user?.role);
+  const canAccess = ['Sales Agent', 'Sales Manager', 'Customer Support Agent', 'Customer Support Manager', 'CRM Developer', 'CRM Consultant', 'System Architect', 'Core 360 Administrator'].includes(user?.role);
 
   const handleLookup = async (e) => {
     e.preventDefault();
@@ -128,7 +128,7 @@ const BookingLookupPage = () => {
 
             {(user.role === 'Customer Support Agent' || user.role === 'Customer Support Manager' ||
               user.role === 'CRM Developer' || user.role === 'CRM Consultant' ||
-              user.role === 'System Architect' || user.role === 'Super CRM Administrator') && (
+              user.role === 'System Architect' || user.role === 'Core 360 Administrator') && (
               <div style={{ marginTop: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {booking.status !== 'Canceled' && (
                   <button className="btn btn-secondary btn-sm" onClick={() => handleStatusChange('Canceled')}>

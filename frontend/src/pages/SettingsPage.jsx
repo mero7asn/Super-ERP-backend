@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Icon } from '../components/Icons';
 import API from '../services/api';
 
@@ -16,7 +16,7 @@ const SettingsPage = () => {
   const [testing, setTesting] = useState(false);
 
   // General settings
-  const [appName, setAppName] = useState('Super CRM');
+  const [appName, setAppName] = useState('Core 360');
   const [companyName, setCompanyName] = useState('Super Enterprise Inc.');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 

@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const {
@@ -17,7 +17,7 @@ const {
 } = require('../controllers/inventoryController');
 
 const INVENTORY_ROLES = [
-  'Super CRM Administrator', 'System Architect', 'Inventory Manager',
+  'Core 360 Administrator', 'System Architect', 'Inventory Manager',
   'Warehouse Manager', 'Receiving Clerk', 'Shipping Clerk',
   'Warehouse Operator', 'Inventory Clerk', 'Quality Inspector'
 ];

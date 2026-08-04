@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -120,7 +120,7 @@ const processRoleDistribution = (data) => {
     'CRM Consultant': 'Consultant',
     'CRM Developer': 'Developer',
     'System Architect': 'Admin',
-    'Super CRM Administrator': 'Admin',
+    'Core 360 Administrator': 'Admin',
     'Executive User': 'Executive'
   };
   

@@ -1,4 +1,4 @@
-const User = require('../models/User');
+﻿const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
 // Generate JWT
@@ -155,13 +155,13 @@ exports.getTeams = async (req, res) => {
 
     // Roles that report directly to Executive User (no sub-teams)
     const EXEC_DIRECT_ROLES = [
-      'Super CRM Administrator', 'Business Analyst', 'Sales Manager', 'Marketing Manager',
+      'Core 360 Administrator', 'Business Analyst', 'Sales Manager', 'Marketing Manager',
       'Customer Support Manager', 'System Architect', 'HRM System Administrator', 'HR Manager'
     ];
 
     const allManagerRoles = HIERARCHY.map(h => h.managerRole);
     const allMemberRoles  = HIERARCHY.flatMap(h => h.memberRoles);
-    const execDirectRoles = ['Super CRM Administrator', 'Business Analyst', 'HRM System Administrator'];
+    const execDirectRoles = ['Core 360 Administrator', 'Business Analyst', 'HRM System Administrator'];
 
     const [executives, managers, members, execDirects] = await Promise.all([
       User.find({ role: 'Executive User' }).select('firstName lastName email role isActive'),
@@ -267,7 +267,7 @@ exports.updateUser = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwnProfile = req.user._id.toString() === req.params.id;
 
     if (!isOwnProfile && !isAdmin) {
@@ -317,7 +317,7 @@ exports.updateUser = async (req, res) => {
 // @access  Private
 exports.getUserById = async (req, res) => {
   try {
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwnProfile = req.user._id.toString() === req.params.id;
 
     if (!isOwnProfile && !isAdmin) {
@@ -349,7 +349,7 @@ exports.getUsersList = async (req, res) => {
 // @access  Private (own profile or admin)
 exports.verifySmtp = async (req, res) => {
   try {
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwnProfile = req.user._id.toString() === req.params.id;
     if (!isOwnProfile && !isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });

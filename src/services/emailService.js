@@ -1,4 +1,4 @@
-const SystemSetting = require('../models/SystemSetting');
+﻿const SystemSetting = require('../models/SystemSetting');
 const { decrypt } = require('./encryption');
 
 const getActiveEmailConfig = (user, globalConfig) => {
@@ -40,7 +40,7 @@ const sendEmail = async (user, options, globalConfig = null) => {
   const { source, config: activeConfig } = getActiveEmailConfig(user, globalConfig);
   console.log(`[email] sendEmail using ${source} config: from=${activeConfig ? activeConfig.smtpUser : user.email} to=${options.to}`);
   const branding = await getBrandingConfig();
-  const fromName = branding.companyName || 'Super CRM';
+  const fromName = branding.companyName || 'Core 360';
   const fromAddress = activeConfig ? activeConfig.smtpUser : user.email;
 
   const mailOptions = {
@@ -120,10 +120,10 @@ const getGlobalEmailConfig = async () => {
 const getBrandingConfig = async () => {
   try {
     const setting = await SystemSetting.findOne({ key: 'branding' });
-    return setting?.value || { companyName: 'Super CRM', companyLogo: '' };
+    return setting?.value || { companyName: 'Core 360', companyLogo: '' };
   } catch (error) {
     console.error('Failed to load branding settings:', error);
-    return { companyName: 'Super CRM', companyLogo: '' };
+    return { companyName: 'Core 360', companyLogo: '' };
   }
 };
 
@@ -136,7 +136,7 @@ const sendRawEmail = async ({ to, subject, text, html, fromAddress, fromName, at
   }
 
   const branding = fromName ? null : await getBrandingConfig();
-  const fromLabel = fromName ? fromName.trim() : (branding?.companyName || 'Super CRM');
+  const fromLabel = fromName ? fromName.trim() : (branding?.companyName || 'Core 360');
   const fromHeader = fromAddress
     ? `"${fromLabel}" <${fromAddress}>`
     : `"${fromLabel}" <${cfg.smtpUser}>`;

@@ -1,14 +1,14 @@
-# SUPER CRM & HRM DESIGN SYSTEM SPECIFICATION
+﻿# SUPER CRM & HRM DESIGN SYSTEM SPECIFICATION
 ## Figma UI/UX Technical Blueprint & Token Dictionary
 **Document Reference:** DS-SPEC-V1.0.0  
 **Status:** Approved for Implementation  
 **Target Viewports:** Responsive Web (Desktop, Tablet, Mobile)  
-**Associated Workspace:** [Super CRM (Local)](file:///c:/Users/Admin/Desktop/Super%20CRM)
+**Associated Workspace:** [Core 360 (Local)](file:///c:/Users/Admin/Desktop/Super%20CRM)
 
 ---
 
 ## 1. DOCUMENT CONTROL & ARCHITECTURAL CONTEXT
-This document serves as the single source of truth (SSOT) and engineering-level blueprint for high-fidelity UI design in Figma and subsequent frontend implementation. It specifies the tokens, component parameters, sitemaps, grid rules, and motion variables for the **Super CRM & HRM** application ecosystem. All design variations, component states, and spacing structures must conform strictly to the numeric definitions contained herein.
+This document serves as the single source of truth (SSOT) and engineering-level blueprint for high-fidelity UI design in Figma and subsequent frontend implementation. It specifies the tokens, component parameters, sitemaps, grid rules, and motion variables for the **Core 360 & HRM** application ecosystem. All design variations, component states, and spacing structures must conform strictly to the numeric definitions contained herein.
 
 ### 1.1 Scope of Modules
 The design system spans two integrated, permission-gated product modules:
@@ -467,7 +467,7 @@ The navigation sidebar displays menu options conditionally based on the user's r
 | **Bookings Calendar** | `/bookings` | Sales, Support, Developers, Admins |
 | **Campaigns Manager**| `/campaigns` | Admins, Marketing Specialists/Managers, Executives, Analysts |
 | **Analytics Suite** | `/analytics` | Admins, Executives, Analysts, Architects |
-| **User Settings** | `/settings` | Super CRM Administrators |
+| **User Settings** | `/settings` | Core 360 Administrators |
 | **HRM Dashboard** | `/hrm` | All HRM Authorized roles |
 | **Personal Records** | `/hrm/personal` | Admins, HR Managers/Specialists/Partners, Employee (Self-access) |
 | **Payroll Manager** | `/hrm/payroll` | Admins, HR Managers, Payroll Specialists, Employee (Self-access) |

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { decrypt } = require('../services/encryption');
 
@@ -33,7 +33,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: [
-      'Super CRM Administrator',
+      'Core 360 Administrator',
       'Sales Agent',
       'Sales Manager',
       'Customer Support Agent',

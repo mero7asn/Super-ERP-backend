@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const User = require('../src/models/User');
@@ -9,7 +9,7 @@ const fixHierarchy = async () => {
     console.log('Connected to MongoDB');
 
     const executiveUser = await User.findOne({ role: 'Executive User' });
-    const superAdmin = await User.findOne({ role: 'Super CRM Administrator' });
+    const superAdmin = await User.findOne({ role: 'Core 360 Administrator' });
     
     if (!executiveUser || !superAdmin) {
       console.log('Key users not found');
@@ -17,17 +17,17 @@ const fixHierarchy = async () => {
     }
 
     console.log(`Executive User: ${executiveUser.firstName} ${executiveUser.lastName}`);
-    console.log(`Super CRM Administrator: ${superAdmin.firstName} ${superAdmin.lastName}`);
+    console.log(`Core 360 Administrator: ${superAdmin.firstName} ${superAdmin.lastName}`);
 
     const managerRoles = ['Sales Manager', 'Customer Support Manager', 'Marketing Manager', 'System Architect'];
     await User.updateMany(
       { role: { $in: managerRoles } },
       { supervisor: superAdmin._id }
     );
-    console.log(`\nUpdated managers to report to Super CRM Administrator`);
+    console.log(`\nUpdated managers to report to Core 360 Administrator`);
 
     await User.updateMany(
-      { role: { $in: ['Super CRM Administrator', 'Business Analyst'] } },
+      { role: { $in: ['Core 360 Administrator', 'Business Analyst'] } },
       { supervisor: executiveUser._id }
     );
     console.log('Updated top-level users to report to Executive User');

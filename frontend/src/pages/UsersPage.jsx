@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import { Icon } from '../components/Icons';
@@ -17,7 +17,7 @@ const CHIP_LABELS = Object.fromEntries(
 
 const roleBadge = (role) => {
   const map = {
-    'Super CRM Administrator': 'badge-urgent',
+    'Core 360 Administrator': 'badge-urgent',
     'System Architect': 'badge-urgent',
     'Sales Manager': 'badge-qualified',
     'Customer Support Manager': 'badge-qualified',

@@ -1,4 +1,4 @@
-const Offer = require('../models/Offer');
+﻿const Offer = require('../models/Offer');
 const OfferHistory = require('../models/OfferHistory');
 const OfferVersion = require('../models/OfferVersion');
 const Lead = require('../models/Lead');
@@ -72,7 +72,7 @@ exports.getOffersByLead = async (req, res) => {
     const lead = await Lead.findById(req.params.leadId);
     if (!lead) return res.status(404).json({ message: 'Lead not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
@@ -128,7 +128,7 @@ exports.createOffer = async (req, res) => {
       return res.status(400).json({ message: 'Valid until date is required' });
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
@@ -179,7 +179,7 @@ exports.updateOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
     const canUpdateBookingStatus = ['Customer Support Agent', 'Customer Support Manager', 'CRM Developer', 'CRM Consultant'].includes(req.user.role);
 
@@ -260,7 +260,7 @@ exports.reviseOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -318,7 +318,7 @@ exports.deleteOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -355,7 +355,7 @@ exports.sendOffer = async (req, res) => {
       return res.status(400).json({ message: 'This offer is not linked to a valid lead. Cannot send.' });
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy && offer.createdBy._id
       ? offer.createdBy._id.toString() === req.user._id.toString()
       : false;
@@ -456,7 +456,7 @@ exports.sendOffer = async (req, res) => {
           <p style="margin:24px 0 0;font-size:14px;color:#333333;line-height:1.6;">Best regards,<br><strong>${agentName}</strong></p>
         </td></tr>
         <tr><td style="padding:16px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-          <p style="margin:0;font-size:11px;color:#94a3b8;">Sent via Super CRM • ${new Date().toLocaleString()}</p>
+          <p style="margin:0;font-size:11px;color:#94a3b8;">Sent via Core 360 • ${new Date().toLocaleString()}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -619,7 +619,7 @@ exports.getOfferVersions = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -645,7 +645,7 @@ exports.getOfferVersion = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -735,7 +735,7 @@ exports.updateTemplate = async (req, res) => {
     const template = await OfferTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && template.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this template' });
     }
@@ -767,7 +767,7 @@ exports.deleteTemplate = async (req, res) => {
     const template = await OfferTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && template.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this template' });
     }
@@ -787,7 +787,7 @@ exports.uploadOfferImage = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -823,7 +823,7 @@ exports.deleteOfferImage = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -847,7 +847,7 @@ exports.initiateAvayaCall = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -884,7 +884,7 @@ exports.getPaymentLink = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ message: 'Not authorized to view this offer\'s payment link' });
@@ -914,7 +914,7 @@ exports.getOfferByLocator = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found with this record locator' });
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
     const isCreator = offer.createdBy._id.toString() === req.user._id.toString();
 
     if (!isAdmin && !isCreator) {
@@ -944,7 +944,7 @@ exports.getOfferHistory = async (req, res) => {
 
 // Shared authorization check for an offer's version/history access.
 async function assertOfferAccess(offer, req) {
-  const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+  const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
   const isOwner = offer.createdBy._id.toString() === req.user._id.toString();
   if (!isAdmin && !isOwner) {
     return false;

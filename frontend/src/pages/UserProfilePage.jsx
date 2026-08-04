@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
@@ -6,7 +6,7 @@ import { PERMISSION_CATALOG, ALL_PERMISSION_KEYS } from '../services/permissions
 
 const roleBadge = (role) => {
   const map = {
-    'Super CRM Administrator': 'badge-urgent',
+    'Core 360 Administrator': 'badge-urgent',
     'System Architect': 'badge-urgent',
     'Sales Manager': 'badge-qualified',
     'Customer Support Manager': 'badge-qualified',
@@ -23,7 +23,7 @@ const roleBadge = (role) => {
 };
 
 const ALL_ROLES = [
-  'Super CRM Administrator', 'Sales Agent', 'Sales Manager',
+  'Core 360 Administrator', 'Sales Agent', 'Sales Manager',
   'Customer Support Agent', 'Customer Support Manager',
   'Marketing Specialist', 'Marketing Manager', 'Business Analyst',
   'CRM Developer', 'CRM Consultant', 'System Architect', 'Executive User'
@@ -139,7 +139,7 @@ const UserProfilePage = () => {
   const [smtpTestResult, setSmtpTestResult] = useState(null);
   const [permFilter, setPermFilter] = useState('');
 
-  const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(currentUser?.role);
+  const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(currentUser?.role);
   const isOwnProfile = currentUser?._id === id;
   const canEdit = isOwnProfile || isAdmin;
   const [managers, setManagers] = useState([]);
@@ -167,12 +167,12 @@ const UserProfilePage = () => {
           if (role === 'Marketing Specialist') return u.role === 'Marketing Manager';
           if (role === 'CRM Developer' || role === 'CRM Consultant') return u.role === 'System Architect';
           
-          // All managers report to Super CRM Administrator
+          // All managers report to Core 360 Administrator
           if (['Sales Manager', 'Customer Support Manager', 'Marketing Manager', 'System Architect'].includes(role))
-            return u.role === 'Super CRM Administrator';
+            return u.role === 'Core 360 Administrator';
           
-          // Super CRM Administrator and Business Analyst report to Executive User
-          if (['Super CRM Administrator', 'Business Analyst'].includes(role))
+          // Core 360 Administrator and Business Analyst report to Executive User
+          if (['Core 360 Administrator', 'Business Analyst'].includes(role))
             return u.role === 'Executive User';
           
           return false;
@@ -500,7 +500,7 @@ const UserProfilePage = () => {
                         </select>
                       </div>
                     </div>
-                    {(['Sales Agent', 'Customer Support Agent', 'Marketing Specialist', 'CRM Developer', 'CRM Consultant', 'Sales Manager', 'Customer Support Manager', 'Marketing Manager', 'System Architect', 'Super CRM Administrator', 'Business Analyst'].includes(form.role)) && (
+                    {(['Sales Agent', 'Customer Support Agent', 'Marketing Specialist', 'CRM Developer', 'CRM Consultant', 'Sales Manager', 'Customer Support Manager', 'Marketing Manager', 'System Architect', 'Core 360 Administrator', 'Business Analyst'].includes(form.role)) && (
                       <div className="form-group" style={{ margin: '16px 0 0' }}>
                         <label className="form-label">Supervisor</label>
                         <select className="form-input" value={form.supervisor} onChange={e => setForm(f => ({ ...f, supervisor: e.target.value }))}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 import { Icon } from '../components/Icons';
@@ -32,9 +32,9 @@ const CampaignsPage = () => {
 
   const [copied, setCopied] = useState(null);
 
-  const canCreate = ['Super CRM Administrator', 'Marketing Specialist', 'Marketing Manager', 'System Architect'].includes(user?.role);
-  const canDelete = ['Super CRM Administrator', 'Marketing Manager', 'System Architect'].includes(user?.role);
-  const canGetFormLink = ['Super CRM Administrator', 'System Architect', 'Marketing Manager'].includes(user?.role);
+  const canCreate = ['Core 360 Administrator', 'Marketing Specialist', 'Marketing Manager', 'System Architect'].includes(user?.role);
+  const canDelete = ['Core 360 Administrator', 'Marketing Manager', 'System Architect'].includes(user?.role);
+  const canGetFormLink = ['Core 360 Administrator', 'System Architect', 'Marketing Manager'].includes(user?.role);
 
   const handleGetFormLink = async (campaign) => {
     try {

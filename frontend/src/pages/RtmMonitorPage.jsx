@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { AUX_COLORS, AUX_ICONS } from '../context/AuxContext';
 
 const REFRESH_INTERVAL = 20000; // 20s live refresh
 
-const RTM_ROLES = ['RTM Team Member', 'Super CRM Administrator', 'HRM System Administrator', 'HR Manager'];
+const RTM_ROLES = ['RTM Team Member', 'Core 360 Administrator', 'HRM System Administrator', 'HR Manager'];
 
 const SHIFT_OPTIONS = [
   'Day Shift (09:00 - 17:00)',

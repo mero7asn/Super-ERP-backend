@@ -1,4 +1,4 @@
-/**
+﻿/**
  * gatewayController.js
  * Manages PaymentGateway config and EmployeeBankAccount records
  */
@@ -16,7 +16,7 @@ const { isLive, LIVE_MODE } = require('../services/disbursementService');
 const { VENDOR_CAPABILITIES, validateBankAccount } = require('../services/vendorConfig');
 
 const ADMIN_ROLES = [
-  'Super CRM Administrator',
+  'Core 360 Administrator',
   'HRM System Administrator',
   'HR Director / Executive HR User',
   'HR Manager',

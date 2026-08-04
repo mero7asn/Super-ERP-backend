@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 
@@ -12,7 +12,7 @@ const SEED_USERS = [
     lastName: 'Admin',
     email: 'super.admin@crm.com',
     password: 'Admin@1234',
-    role: 'Super CRM Administrator',
+    role: 'Core 360 Administrator',
     permissions: {
       canViewLeads: true, canEditLeads: true, canDeleteLeads: true,
       canViewTickets: true, canEditTickets: true, canDeleteTickets: true,

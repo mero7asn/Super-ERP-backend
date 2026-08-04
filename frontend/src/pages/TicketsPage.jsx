@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 import { Icon } from '../components/Icons';
@@ -47,7 +47,7 @@ const TicketsPage = () => {
     assignedTo: ''
   });
 
-  const canManage = ['CRM Developer', 'CRM Consultant', 'System Architect', 'Super CRM Administrator'].includes(user?.role);
+  const canManage = ['CRM Developer', 'CRM Consultant', 'System Architect', 'Core 360 Administrator'].includes(user?.role);
   const canCreate = Boolean(user);
   const canComment = Boolean(
     selectedTicket &&

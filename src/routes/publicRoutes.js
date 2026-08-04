@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const Campaign = require('../models/Campaign');
 const Lead = require('../models/Lead');
@@ -30,7 +30,7 @@ const { authorizeRoles } = require('../middleware/rbac');
 
 router.post('/campaigns/:id/generate-form',
   protect,
-  authorizeRoles('Super CRM Administrator', 'System Architect', 'Marketing Manager'),
+  authorizeRoles('Core 360 Administrator', 'System Architect', 'Marketing Manager'),
   async (req, res) => {
     try {
       const campaign = await Campaign.findById(req.params.id);

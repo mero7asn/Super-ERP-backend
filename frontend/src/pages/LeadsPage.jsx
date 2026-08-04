@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
@@ -23,7 +23,7 @@ const LeadsPage = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [updating, setUpdating] = useState(null);
 
-  const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(user?.role);
+  const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(user?.role);
   const isManager = user?.role === 'Sales Manager';
   const isAgent = user?.role === 'Sales Agent';
   const canReassign = isAdmin || isManager;
