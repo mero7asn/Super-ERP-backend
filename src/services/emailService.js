@@ -1,4 +1,4 @@
-﻿const SystemSetting = require('../models/SystemSetting');
+const SystemSetting = require('../models/SystemSetting');
 const { decrypt } = require('./encryption');
 
 const getActiveEmailConfig = (user, globalConfig) => {

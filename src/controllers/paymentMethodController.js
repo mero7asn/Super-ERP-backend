@@ -1,14 +1,14 @@
-﻿const PaymentMethod = require('../models/PaymentMethod');
+const PaymentMethod = require('../models/PaymentMethod');
 
 const PAYROLL_ROLES = [
   'Payroll Specialist', 'HR Manager', 'HR Director / Executive HR User',
-  'HRM System Administrator', 'Core 360 Administrator',
+  'HRM System Administrator', 'Super CRM Administrator',
 ];
 const isPayrollMgr = (role) => PAYROLL_ROLES.includes(role);
 
 const validateCard = (cardNumber, expiryMonth, expiryYear) => {
   const cleaned = cardNumber.replace(/\s/g, '');
-  if (!/^\d{13,19}$/.test(cleaned)) return 'Card number must be 13–19 digits.';
+  if (!/^\d{13,19}$/.test(cleaned)) return 'Card number must be 13�19 digits.';
 
   const month = parseInt(expiryMonth, 10);
   const year  = parseInt(expiryYear, 10);
@@ -23,7 +23,7 @@ const validateCard = (cardNumber, expiryMonth, expiryYear) => {
   return null; // valid
 };
 
-// ── ESS: Submit a new payment method ─────────────────────────────
+// -- ESS: Submit a new payment method -----------------------------
 exports.submitPaymentMethod = async (req, res) => {
   try {
     const { cardholderName, cardType, cardNumber, expiryMonth, expiryYear } = req.body;
@@ -53,7 +53,7 @@ exports.submitPaymentMethod = async (req, res) => {
   }
 };
 
-// ── ESS: Update (edit) a payment method — resets to Pending ──────
+// -- ESS: Update (edit) a payment method � resets to Pending ------
 exports.updatePaymentMethod = async (req, res) => {
   try {
     const pm = await PaymentMethod.findOne({ _id: req.params.id, employeeId: req.user._id });
@@ -91,7 +91,7 @@ exports.updatePaymentMethod = async (req, res) => {
   }
 };
 
-// ── ESS: Get own payment methods ──────────────────────────────────
+// -- ESS: Get own payment methods ----------------------------------
 exports.getMyPaymentMethods = async (req, res) => {
   try {
     const methods = await PaymentMethod.find({ employeeId: req.user._id }).sort({ createdAt: -1 });
@@ -101,7 +101,7 @@ exports.getMyPaymentMethods = async (req, res) => {
   }
 };
 
-// ── ESS: Delete a pending payment method ─────────────────────────
+// -- ESS: Delete a pending payment method -------------------------
 exports.deletePaymentMethod = async (req, res) => {
   try {
     const pm = await PaymentMethod.findOne({ _id: req.params.id, employeeId: req.user._id });
@@ -114,7 +114,7 @@ exports.deletePaymentMethod = async (req, res) => {
   }
 };
 
-// ── Manager: List all payment methods (pending first) ────────────
+// -- Manager: List all payment methods (pending first) ------------
 exports.getAllPaymentMethods = async (req, res) => {
   try {
     if (!isPayrollMgr(req.user?.role))
@@ -133,7 +133,7 @@ exports.getAllPaymentMethods = async (req, res) => {
   }
 };
 
-// ── Manager: Approve ──────────────────────────────────────────────
+// -- Manager: Approve ----------------------------------------------
 exports.approvePaymentMethod = async (req, res) => {
   try {
     if (!isPayrollMgr(req.user?.role))
@@ -160,7 +160,7 @@ exports.approvePaymentMethod = async (req, res) => {
   }
 };
 
-// ── Manager: Reject ───────────────────────────────────────────────
+// -- Manager: Reject -----------------------------------------------
 exports.rejectPaymentMethod = async (req, res) => {
   try {
     if (!isPayrollMgr(req.user?.role))

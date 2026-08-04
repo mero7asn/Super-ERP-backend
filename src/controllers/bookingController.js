@@ -1,4 +1,4 @@
-﻿const Booking = require('../models/Booking');
+const Booking = require('../models/Booking');
 const Offer = require('../models/Offer');
 const Lead = require('../models/Lead');
 
@@ -53,7 +53,7 @@ exports.updateBooking = async (req, res) => {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && booking.agent.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this booking' });
     }

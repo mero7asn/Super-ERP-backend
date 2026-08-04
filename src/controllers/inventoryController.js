@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const InventoryItem = require('../models/InventoryItem');
 const Warehouse = require('../models/Warehouse');
 const StockLevel = require('../models/StockLevel');
@@ -129,7 +129,7 @@ exports.updateInventoryItem = async (req, res) => {
 exports.deleteInventoryItem = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Core 360 Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only administrators can delete inventory items.' });
 
     const item = await InventoryItem.findById(req.params.id);
@@ -550,7 +550,7 @@ exports.getInventoryKPIs = async (req, res) => {
 
     const stock = stockAgg[0] || {};
 
-    // ── Inventory Turnover & Days on Hand (rolling 90 days) ──
+    // -- Inventory Turnover & Days on Hand (rolling 90 days) --
     const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const cogsPipeline = await StockTransaction.aggregate([
       { $match: { type: 'GOODS_ISSUE', status: 'Posted', createdAt: { $gte: since90 } } },
@@ -562,7 +562,7 @@ exports.getInventoryKPIs = async (req, res) => {
     const inventoryTurnover = avgInventoryValue > 0 ? Math.round((annualizedCOGS / avgInventoryValue) * 100) / 100 : 0;
     const daysOnHand = annualizedCOGS > 0 ? Math.round((avgInventoryValue / annualizedCOGS) * 365 * 10) / 10 : null;
 
-    // ── Stock Accuracy from cycle counts (last 30 days) ──
+    // -- Stock Accuracy from cycle counts (last 30 days) --
     const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const accuracyPipeline = await CycleCount.aggregate([
       { $match: { status: 'Posted', createdAt: { $gte: since30 } } },
@@ -580,7 +580,7 @@ exports.getInventoryKPIs = async (req, res) => {
       ? Math.round(((acc.totalCounted - acc.totalVariance) / acc.totalCounted) * 10000) / 100
       : null;
 
-    // ── Fill Rate (last 30 days) ──
+    // -- Fill Rate (last 30 days) --
     const fillRatePipeline = await Shipment.aggregate([
       { $match: { createdAt: { $gte: since30 } } },
       {
@@ -594,7 +594,7 @@ exports.getInventoryKPIs = async (req, res) => {
     const fr = fillRatePipeline[0];
     const fillRate = fr && fr.total > 0 ? Math.round((fr.shipped / fr.total) * 10000) / 100 : null;
 
-    // ── Reorder Alerts count ──
+    // -- Reorder Alerts count --
     const reorderAlertsCount = await StockLevel.aggregate([
       { $group: { _id: '$item', totalAvailable: { $sum: '$available' } } },
       { $lookup: { from: 'inventoryitems', localField: '_id', foreignField: '_id', as: 'itemData' } },
@@ -603,14 +603,14 @@ exports.getInventoryKPIs = async (req, res) => {
       { $count: 'count' }
     ]);
 
-    // ── Expiry Alerts (next 30 days) ──
+    // -- Expiry Alerts (next 30 days) --
     const expiryAlertCount = await Lot.countDocuments({
       expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
       status: 'Unrestricted',
       quantity: { $gt: 0 }
     });
 
-    // ── Open pick tasks ──
+    // -- Open pick tasks --
     const openPickTasks = await PickTask.countDocuments({ status: { $in: ['Draft', 'Assigned', 'In Progress'] } });
 
     res.json({
@@ -716,7 +716,7 @@ exports.getSerials = async (req, res) => {
 exports.approveAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Core 360 Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can approve adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);
@@ -737,7 +737,7 @@ exports.approveAdjustment = async (req, res) => {
 exports.rejectAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Core 360 Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can reject adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);
@@ -948,7 +948,7 @@ exports.getPhysicalInventories = async (req, res) => {
   }
 };
 
-// ─── Pick Task Management ────────────────────────────────────────────────────
+// --- Pick Task Management ----------------------------------------------------
 
 exports.createPickTask = async (req, res) => {
   try {
@@ -1140,7 +1140,7 @@ exports.releasePickWave = async (req, res) => {
   }
 };
 
-// ─── Inventory Intelligence ──────────────────────────────────────────────────
+// --- Inventory Intelligence --------------------------------------------------
 
 exports.getInventoryValuation = async (req, res) => {
   try {

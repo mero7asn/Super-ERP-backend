@@ -1,4 +1,4 @@
-﻿/**
+/**
  * gatewayController.js
  * Manages PaymentGateway config and EmployeeBankAccount records
  */
@@ -16,7 +16,7 @@ const { isLive, LIVE_MODE } = require('../services/disbursementService');
 const { VENDOR_CAPABILITIES, validateBankAccount } = require('../services/vendorConfig');
 
 const ADMIN_ROLES = [
-  'Core 360 Administrator',
+  'Super CRM Administrator',
   'HRM System Administrator',
   'HR Director / Executive HR User',
   'HR Manager',
@@ -24,9 +24,9 @@ const ADMIN_ROLES = [
 ];
 const isAdmin = (user) => ADMIN_ROLES.includes(user?.role);
 
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 // GATEWAY CONFIG
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 // GET all gateways (masked)
 exports.getGateways = async (req, res) => {
@@ -36,7 +36,7 @@ exports.getGateways = async (req, res) => {
       .populate('configuredBy', 'firstName lastName')
       .populate('updatedBy', 'firstName lastName');
 
-    // Return masked versions — never expose raw encrypted strings to frontend
+    // Return masked versions � never expose raw encrypted strings to frontend
     const masked = gateways.map(g => ({
       _id: g._id,
       provider: g.provider,
@@ -112,9 +112,9 @@ exports.deleteGateway = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 // EMPLOYEE BANK ACCOUNTS
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 // GET all bank accounts (admin) or own (employee)
 exports.getBankAccounts = async (req, res) => {
@@ -229,9 +229,9 @@ exports.deleteBankAccount = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 // TRANSACTION LOG
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 exports.getTransactions = async (req, res) => {
   try {
@@ -313,11 +313,11 @@ exports.retryTransaction = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// VENDOR CAPABILITIES — drives the dynamic bank-account form
+// -----------------------------------------------------------------
+// VENDOR CAPABILITIES � drives the dynamic bank-account form
 // Returns each vendor, its supported methods, required fields, and whether
 // an active gateway is currently configured for it.
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 exports.getVendors = async (req, res) => {
   try {
@@ -337,9 +337,9 @@ exports.getVendors = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 // COMPANY SOURCE BANK ACCOUNTS (money goes OUT from here)
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 // GET all company accounts (masked)
 exports.getCompanyAccounts = async (req, res) => {
@@ -452,10 +452,10 @@ exports.deleteCompanyAccount = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// RELEASE READINESS CHECK — call before releasing a run
+// -----------------------------------------------------------------
+// RELEASE READINESS CHECK � call before releasing a run
 // Returns what's missing / what will happen (live vs simulation).
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 exports.getReleaseReadiness = async (req, res) => {
   try {
@@ -482,7 +482,7 @@ exports.getReleaseReadiness = async (req, res) => {
     else if (!sourceAccount.isActive) issues.push(`Source account "${sourceAccount.nickname}" is inactive.`);
 
     if (!LIVE_MODE && run.disbursementMode === 'live') {
-      issues.push('DISBURSEMENT_LIVE_MODE is not enabled in the server environment — run will be simulated.');
+      issues.push('DISBURSEMENT_LIVE_MODE is not enabled in the server environment � run will be simulated.');
     }
 
     for (const e of entries) {
@@ -522,11 +522,11 @@ exports.getReleaseReadiness = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
-// GATEWAY WEBHOOK — reconcile transaction status from gateway callbacks
+// -----------------------------------------------------------------
+// GATEWAY WEBHOOK � reconcile transaction status from gateway callbacks
 // Expects: { provider, gatewayRefId? | gatewayOrderId?, status, signature? }
 // status maps to: SUCCESS | FAILED | REVERSED
-// ─────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------
 
 const WEBHOOK_STATUS_MAP = {
   SUCCESS: 'Success',

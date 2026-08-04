@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const {
@@ -17,7 +17,7 @@ const {
 } = require('../controllers/inventoryController');
 
 const INVENTORY_ROLES = [
-  'Core 360 Administrator', 'System Architect', 'Inventory Manager',
+  'Super CRM Administrator', 'System Architect', 'Inventory Manager',
   'Warehouse Manager', 'Receiving Clerk', 'Shipping Clerk',
   'Warehouse Operator', 'Inventory Clerk', 'Quality Inspector'
 ];
@@ -79,14 +79,14 @@ router.put('/warehouses/:id', updateWarehouse);
 router.get('/lots', getLots);
 router.get('/serials', getSerials);
 
-// ─── Pick Tasks ──────────────────────────────────────────────────────────────
+// --- Pick Tasks --------------------------------------------------------------
 router.post('/pick-tasks', createPickTask);
 router.get('/pick-tasks', getPickTasks);
 router.get('/pick-tasks/:id', getPickTask);
 router.put('/pick-tasks/:id', updatePickTask);
 router.post('/pick-wave/release', releasePickWave);
 
-// ─── Inventory Intelligence ──────────────────────────────────────────────────
+// --- Inventory Intelligence --------------------------------------------------
 router.get('/reports/valuation', getInventoryValuation);
 router.get('/reports/abc', getABCClassification);
 router.get('/reports/dead-stock', getDeadStockReport);

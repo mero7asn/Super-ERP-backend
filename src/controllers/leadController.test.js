@@ -1,4 +1,4 @@
-﻿const test = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert/strict');
 const controller = require('./leadController');
 const offerController = require('./offerController');
@@ -65,7 +65,7 @@ test('replaceOfferPlaceholders uses the offer currency when formatting the price
 
   const result = offerController.replaceOfferPlaceholders(html, data);
 
-  assert.match(result, /EGP|E£/i);
+  assert.match(result, /EGP|E�/i);
   assert.match(result, /1,250\.00/);
 });
 
@@ -95,7 +95,7 @@ test('addLeadNote normalizes object-shaped existing notes before appending', asy
 
   const req = {
     params: { id: '507f1f77bcf86cd799439011' },
-    user: { _id: 'user-1', role: 'Core 360 Administrator', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' },
+    user: { _id: 'user-1', role: 'Super CRM Administrator', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' },
     body: { text: 'New note' },
   };
   const res = {

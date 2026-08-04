@@ -1,4 +1,4 @@
-ï»¿const Offer = require('../models/Offer');
+const Offer = require('../models/Offer');
 const OfferHistory = require('../models/OfferHistory');
 const Booking = require('../models/Booking');
 const Lead = require('../models/Lead');
@@ -8,7 +8,7 @@ const { syncOfferToInventory } = require('../services/offerOrderService');
 
 // Build an absolute URL for the public payment page on the FRONTEND app.
 // The payment page lives on the client (Vercel frontend), not the API, so we
-// must use the client origin â€” not the API host â€” when generating the link.
+// must use the client origin — not the API host — when generating the link.
 const CLIENT_URL = process.env.CLIENT_URL || 'https://super-erp-frontend.vercel.app';
 
 const buildPaymentLink = (token) => `${CLIENT_URL}/pay/${token}`;
@@ -168,7 +168,7 @@ exports.processPublicPayment = async (req, res) => {
         const brandingSetting = await SystemSetting.findOne({ key: 'branding' });
         const branding = brandingSetting?.value || { companyName: 'Core 360', companyLogo: '' };
         const payLink = buildPaymentLink(offer.paymentToken);
-        const subject = `${branding.companyName || 'Core 360'} â€” Payment Confirmed`;
+        const subject = `${branding.companyName || 'Core 360'} — Payment Confirmed`;
         const text = `
 Hello ${lead.name},
 
@@ -195,7 +195,7 @@ ${branding.companyName || 'Core 360'}
     <tr><td align="center" style="padding:24px 0;">
       <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;">
         <tr><td style="background-color:#16a34a;padding:24px 32px;color:#ffffff;">
-          <h1 style="margin:0;font-size:20px;font-weight:600;">Payment Confirmed ðŸŽ‰</h1>
+          <h1 style="margin:0;font-size:20px;font-weight:600;">Payment Confirmed ??</h1>
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Hello ${lead.name},</p>
