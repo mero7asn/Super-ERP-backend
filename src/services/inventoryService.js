@@ -2,7 +2,91 @@ const StockTransaction = require('../models/StockTransaction');
 const StockLevel = require('../models/StockLevel');
 const InventoryItem = require('../models/InventoryItem');
 const Lot = require('../models/Lot');
+const Serial = require('../models/Serial');
 const ProductVariant = require('../models/ProductVariant');
+
+function checkRole(user) {
+  const allowedRoles = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'];
+  if (!user || !allowedRoles.includes(user.role)) {
+    throw new Error('Not authorized for inventory operations');
+  }
+}
+
+function generateId(prefix) {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+async function getOrCreateStockLevel(itemId, warehouseId, subinventory = 'MAIN', locator = '', lotNumber = '', serialNumber = '') {
+  const stockLevel = await StockLevel.findOne({ item: itemId, warehouse: warehouseId, subinventory, locator, lotNumber, serialNumber });
+  if (stockLevel) return stockLevel;
+
+  const newStockLevel = await StockLevel.create({
+    item: itemId,
+    warehouse: warehouseId,
+    subinventory,
+    locator,
+    lotNumber,
+    serialNumber,
+    onHand: 0,
+    available: 0,
+    allocated: 0,
+    reserved: 0,
+    blocked: 0,
+    inTransit: 0
+  });
+
+  return newStockLevel;
+}
+
+async function postTransaction(payload) {
+  const doc = await StockTransaction.create({
+    ...payload,
+    performedBy: payload.performedBy || payload.user || null,
+    status: payload.status || 'Posted'
+  });
+  return doc;
+}
+
+async function updateStockLevel(stockLevel, delta, type) {
+  const quantity = Number(delta) || 0;
+  const updated = await StockLevel.findById(stockLevel._id);
+  if (!updated) return null;
+
+  updated.onHand = Math.max(0, (updated.onHand || 0) + quantity);
+  updated.available = Math.max(0, (updated.available || 0) + quantity);
+  updated.lastTransactionDate = new Date();
+  await updated.save();
+  return updated;
+}
+
+async function updateLotQuantity(lotId, delta, itemId, warehouseId, subinventory, lotNumber) {
+  if (!lotNumber) return null;
+  let lot = lotId ? await Lot.findById(lotId) : await Lot.findOne({ item: itemId, warehouse: warehouseId, subinventory, lotNumber });
+  if (!lot) {
+    lot = await Lot.create({
+      lotNumber,
+      item: itemId,
+      warehouse: warehouseId,
+      subinventory,
+      quantity: 0,
+      createdBy: null
+    });
+  }
+  lot.quantity = Math.max(0, (lot.quantity || 0) + Number(delta));
+  await lot.save();
+  return lot;
+}
+
+async function updateSerialStatus(serialId, status) {
+  if (!serialId) return null;
+  const serial = await Serial.findById(serialId);
+  if (!serial) return null;
+  serial.status = status;
+  await serial.save();
+  return serial;
+}
 
 /**
  * Recalculate and sync StockLevel balance from StockTransaction ledger
@@ -234,6 +318,13 @@ async function generateInventoryValuationReport(methodOverride = null) {
 }
 
 module.exports = {
+  checkRole,
+  generateId,
+  getOrCreateStockLevel,
+  postTransaction,
+  updateStockLevel,
+  updateLotQuantity,
+  updateSerialStatus,
   syncStockLevel,
   getFefoRecommendedBatches,
   calculateLandedCostAllocation,
