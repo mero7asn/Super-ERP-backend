@@ -1,15 +1,13 @@
-import { useState } from 'react';
-
 export const DEPT_COLORS = {
-  'Sales': { c1: '#2563EB', c2: '#14B8A6', badge: 'badge-new', icon: '💼' },
-  'Customer Support': { c1: '#F59E0B', c2: '#F97316', badge: 'badge-converted', icon: '🎧' },
-  'Marketing': { c1: '#8B5CF6', c2: '#EC4899', badge: 'badge-meta', icon: '📣' },
-  'Technology': { c1: '#10B981', c2: '#14B8A6', badge: 'badge-qualified', icon: '⚙️' },
-  'Personal': { c1: '#3B82F6', c2: '#60A5FA', badge: 'badge-new', icon: '👤' },
-  'Payroll': { c1: '#10B981', c2: '#34D399', badge: 'badge-qualified', icon: '💵' },
-  'Training': { c1: '#F59E0B', c2: '#FBBF24', badge: 'badge-converted', icon: '📚' },
-  'Talent Acquisition': { c1: '#8B5CF6', c2: '#A78BFA', badge: 'badge-meta', icon: '🎯' },
-  'BD & People Culture': { c1: '#EC4899', c2: '#F472B6', badge: 'badge-meta', icon: '🤝' },
+  'Sales': { c1: '#F97316', c2: '#C2410C', badge: 'badge-new', icon: '💼' },
+  'Customer Support': { c1: '#F97316', c2: '#C2410C', badge: 'badge-converted', icon: '🎧' },
+  'Marketing': { c1: '#F97316', c2: '#C2410C', badge: 'badge-meta', icon: '📣' },
+  'Technology': { c1: '#06B6D4', c2: '#0E7490', badge: 'badge-qualified', icon: '⚙️' },
+  'Personal': { c1: '#8B5CF6', c2: '#6D28D9', badge: 'badge-new', icon: '👤' },
+  'Payroll': { c1: '#8B5CF6', c2: '#6D28D9', badge: 'badge-qualified', icon: '💵' },
+  'Training': { c1: '#8B5CF6', c2: '#6D28D9', badge: 'badge-converted', icon: '📚' },
+  'Talent Acquisition': { c1: '#8B5CF6', c2: '#6D28D9', badge: 'badge-meta', icon: '🎯' },
+  'BD & People Culture': { c1: '#8B5CF6', c2: '#6D28D9', badge: 'badge-meta', icon: '🤝' },
   'Other': { c1: '#64748B', c2: '#94A3B8', badge: 'badge-new', icon: '👥' },
 };
 
