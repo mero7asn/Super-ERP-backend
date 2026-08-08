@@ -88,10 +88,33 @@ router.post('/pick-wave/release', releasePickWave);
 
 // --- Inventory Intelligence --------------------------------------------------
 router.get('/reports/valuation', getInventoryValuation);
+router.get('/reports/valuation-detailed', invController.getValuationReport);
 router.get('/reports/abc', getABCClassification);
 router.get('/reports/dead-stock', getDeadStockReport);
 router.get('/alerts/reorder', getReorderAlerts);
 router.get('/alerts/expiry', getExpiryAlerts);
 router.get('/putaway/suggest', getPutawaySuggestion);
+
+// --- Ecosystem Extensions ----------------------------------------------------
+const invController = require('../controllers/inventoryController');
+
+router.get('/variants', invController.getVariants);
+router.post('/variants', invController.createVariant);
+router.post('/variants/generate-matrix', invController.generateVariantMatrix);
+
+router.get('/uoms', invController.getUomConversions);
+router.post('/uoms', invController.createUomConversion);
+
+router.get('/landed-costs', invController.getLandedCosts);
+router.post('/landed-costs', invController.createLandedCost);
+
+router.get('/requisitions', invController.getRequisitions);
+router.post('/requisitions', invController.createRequisition);
+router.post('/requisitions/:id/approve', invController.approveRequisition);
+
+router.post('/qc/inspect', invController.inspectQualityControl);
+router.get('/barcode/scan/:barcode', invController.scanBarcode);
+router.get('/fefo/recommend', invController.getFefoRecommendation);
+router.get('/e-invoice/export/:receivingId', invController.exportEtaEInvoicePayload);
 
 module.exports = router;

@@ -58,6 +58,8 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const productRoutes = require('./routes/productRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const supplyChainRoutes = require('./routes/supplyChainRoutes');
+const accountingRoutes = require('./routes/accountingRoutes');
 const templateRoutes = require('./routes/templateRoutes');
 
 app.use('/api/auth', authRoutes);
@@ -77,6 +79,8 @@ app.use('/api/public/pay', paymentRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/supply-chain', supplyChainRoutes);
+app.use('/api/accounting', accountingRoutes);
 app.use('/api/templates', templateRoutes);
 
 app.get('/', (req, res) => {

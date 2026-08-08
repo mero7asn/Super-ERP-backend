@@ -1443,3 +1443,329 @@ exports.getPutawaySuggestion = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+
+// ==========================================
+// ENTERPRISE ECOSYSTEM EXTENSIONS
+// ==========================================
+
+const ProductVariant = require('../models/ProductVariant');
+const UomConversion = require('../models/UomConversion');
+const LandedCost = require('../models/LandedCost');
+const ApprovalRule = require('../models/ApprovalRule');
+const InternalRequisition = require('../models/InternalRequisition');
+const Product = require('../models/Product');
+const {
+  getFefoRecommendedBatches,
+  calculateLandedCostAllocation,
+  recalculateAbcClassification,
+  generateInventoryValuationReport
+} = require('../services/inventoryService');
+
+// --- Product Variants ---
+exports.getVariants = async (req, res) => {
+  try {
+    const { productId } = req.query;
+    const query = productId ? { product: productId } : {};
+    const variants = await ProductVariant.find(query).populate('product', 'name sku price');
+    res.json({ success: true, data: variants });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch variants', error: err.message });
+  }
+};
+
+exports.createVariant = async (req, res) => {
+  try {
+    const variant = await ProductVariant.create(req.body);
+    res.status(201).json({ success: true, data: variant });
+  } catch (err) {
+    res.status(400).json({ message: 'Failed to create variant', error: err.message });
+  }
+};
+
+exports.generateVariantMatrix = async (req, res) => {
+  try {
+    const { productId, colors, sizes, basePrice, baseCost } = req.body;
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+
+    const createdVariants = [];
+    for (const color of (colors || ['Default'])) {
+      for (const size of (sizes || ['Standard'])) {
+        const sku = `${product.sku}-${color.toUpperCase().slice(0,3)}-${size.toUpperCase()}`;
+        const barcode = `BAR-${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+
+        const existing = await ProductVariant.findOne({ sku });
+        if (!existing) {
+          const v = await ProductVariant.create({
+            product: productId,
+            sku,
+            barcode,
+            attributes: [
+              { name: 'Color', value: color },
+              { name: 'Size', value: size }
+            ],
+            costPrice: baseCost || product.costPrice || 0,
+            sellingPrice: basePrice || product.price || 0,
+            status: 'Active'
+          });
+          createdVariants.push(v);
+        }
+      }
+    }
+    product.hasVariants = true;
+    await product.save();
+
+    res.status(201).json({ success: true, count: createdVariants.length, data: createdVariants });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to generate variant matrix', error: err.message });
+  }
+};
+
+// --- UOM Conversions ---
+exports.getUomConversions = async (req, res) => {
+  try {
+    const conversions = await UomConversion.find().populate('product', 'name sku');
+    res.json({ success: true, data: conversions });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch UOM conversions', error: err.message });
+  }
+};
+
+exports.createUomConversion = async (req, res) => {
+  try {
+    const conversion = await UomConversion.create(req.body);
+    res.status(201).json({ success: true, data: conversion });
+  } catch (err) {
+    res.status(400).json({ message: 'Failed to create UOM conversion', error: err.message });
+  }
+};
+
+// --- Landed Cost Allocations (Egyptian Import Purchasing) ---
+exports.getLandedCosts = async (req, res) => {
+  try {
+    const landedCosts = await LandedCost.find().populate('receivingOrder').sort({ createdAt: -1 });
+    res.json({ success: true, data: landedCosts });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch landed costs', error: err.message });
+  }
+};
+
+exports.createLandedCost = async (req, res) => {
+  try {
+    const { receivingOrder, costs, allocationMethod, supplierName, aciNumber, hsCode, portOfEntry, billOfLading } = req.body;
+    const receiving = await ReceivingOrder.findById(receivingOrder).populate('lines.item');
+    if (!receiving) return res.status(404).json({ message: 'Receiving order not found' });
+
+    const lines = receiving.lines.map(l => ({
+      item: l.item._id,
+      quantity: l.receivedQty || l.expectedQty,
+      purchaseUnitPrice: l.unitCost || 0
+    }));
+
+    const allocatedLines = calculateLandedCostAllocation(lines, costs || {}, allocationMethod || 'By Value');
+    const totalLandedCost = allocatedLines.reduce((sum, l) => sum + l.totalLineLandedCost, 0);
+
+    const landedCostDoc = await LandedCost.create({
+      landedCostNumber: `LC-${Date.now().toString().slice(-6)}`,
+      receivingOrder,
+      supplierName: supplierName || receiving.supplierName,
+      aciNumber: aciNumber || '',
+      hsCode: hsCode || '',
+      portOfEntry: portOfEntry || 'Alexandria',
+      billOfLading: billOfLading || '',
+      costs: costs || {},
+      totalLandedCost,
+      allocationMethod: allocationMethod || 'By Value',
+      allocatedLines,
+      status: 'Calculated',
+      createdBy: req.user._id
+    });
+
+    // Update unit landed cost on inventory items
+    for (const line of allocatedLines) {
+      await InventoryItem.findByIdAndUpdate(line.item, {
+        landedCostUnit: line.unitLandedCost
+      });
+    }
+
+    res.status(201).json({ success: true, data: landedCostDoc });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create landed cost allocation', error: err.message });
+  }
+};
+
+// --- Internal Requisitions ---
+exports.getRequisitions = async (req, res) => {
+  try {
+    const requisitions = await InternalRequisition.find()
+      .populate('requester', 'firstName lastName email')
+      .populate('targetWarehouse', 'code name')
+      .populate('items.item', 'sku name')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, data: requisitions });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch requisitions', error: err.message });
+  }
+};
+
+exports.createRequisition = async (req, res) => {
+  try {
+    const { department, branch, targetWarehouse, purpose, urgency, items } = req.body;
+    const reqNumber = `REQ-${Date.now().toString().slice(-6)}`;
+    const requisition = await InternalRequisition.create({
+      requisitionNumber: reqNumber,
+      requester: req.user._id,
+      department: department || 'Maintenance',
+      branch: branch || 'Cairo Branch',
+      targetWarehouse,
+      purpose,
+      urgency: urgency || 'Normal',
+      status: 'Pending Approval',
+      items
+    });
+    res.status(201).json({ success: true, data: requisition });
+  } catch (err) {
+    res.status(400).json({ message: 'Failed to create requisition', error: err.message });
+  }
+};
+
+exports.approveRequisition = async (req, res) => {
+  try {
+    const reqDoc = await InternalRequisition.findById(req.params.id);
+    if (!reqDoc) return res.status(404).json({ message: 'Requisition not found' });
+
+    reqDoc.status = 'Approved';
+    reqDoc.approvedBy = req.user._id;
+    reqDoc.approvedAt = new Date();
+    await reqDoc.save();
+
+    res.json({ success: true, data: reqDoc });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to approve requisition', error: err.message });
+  }
+};
+
+// --- Quality Control & Quarantine ---
+exports.inspectQualityControl = async (req, res) => {
+  try {
+    const { receivingId, lineId, acceptedQty, rejectedQty, damageNotes, action } = req.body;
+    const order = await ReceivingOrder.findById(receivingId);
+    if (!order) return res.status(404).json({ message: 'Receiving order not found' });
+
+    const line = order.lines.id(lineId);
+    if (!line) return res.status(404).json({ message: 'Line not found' });
+
+    line.acceptedQty = Number(acceptedQty) || 0;
+    line.rejectedQty = Number(rejectedQty) || 0;
+    line.damageNotes = damageNotes || '';
+    line.qualityStatus = action === 'Reject' ? 'Failed' : 'Passed';
+    order.inspectedBy = req.user._id;
+
+    await order.save();
+    res.json({ success: true, data: order });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to record QC inspection', error: err.message });
+  }
+};
+
+// --- Barcode Scanner Quick Scan ---
+exports.scanBarcode = async (req, res) => {
+  try {
+    const { barcode } = req.params;
+    const code = barcode.trim();
+
+    // Check inventory items first
+    let item = await InventoryItem.findOne({ sku: code.toUpperCase() });
+    if (!item) {
+      const variant = await ProductVariant.findOne({ $or: [{ barcode: code }, { sku: code.toUpperCase() }] }).populate('product');
+      if (variant) {
+        item = await InventoryItem.findOne({ sku: variant.product?.sku || variant.sku });
+      }
+    }
+
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'No inventory item matching this barcode/SKU' });
+    }
+
+    const stockLevels = await StockLevel.find({ item: item._id }).populate('warehouse', 'code name');
+    res.json({
+      success: true,
+      item: {
+        _id: item._id,
+        sku: item.sku,
+        name: item.name,
+        category: item.category,
+        baseUom: item.baseUom,
+        unitCost: item.unitCost,
+        reorderPoint: item.reorderPoint
+      },
+      stockLevels
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Barcode scan failed', error: err.message });
+  }
+};
+
+// --- FEFO Picking Recommendation ---
+exports.getFefoRecommendation = async (req, res) => {
+  try {
+    const { item, warehouse, quantity } = req.query;
+    if (!item || !warehouse) return res.status(400).json({ message: 'Item and warehouse are required' });
+
+    const result = await getFefoRecommendedBatches(item, warehouse, Number(quantity || 1));
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to calculate FEFO recommendation', error: err.message });
+  }
+};
+
+// --- Valuation Report & ETA E-Invoice ready export ---
+exports.getValuationReport = async (req, res) => {
+  try {
+    const report = await generateInventoryValuationReport(req.query.method);
+    res.json({ success: true, data: report });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to generate valuation report', error: err.message });
+  }
+};
+
+exports.exportEtaEInvoicePayload = async (req, res) => {
+  try {
+    const { receivingId } = req.params;
+    const order = await ReceivingOrder.findById(receivingId).populate('lines.item');
+    if (!order) return res.status(404).json({ message: 'Receiving order not found' });
+
+    const etaPayload = {
+      issuer: {
+        id: "123456789",
+        name: "Super ERP Egyptian Enterprise",
+        type: "B"
+      },
+      receiver: {
+        name: order.supplierName || "Supplier Vendor",
+        type: "B"
+      },
+      documentType: "I", // ETA Invoice
+      dateTimeIssued: new Date().toISOString(),
+      taxpayerActivityCode: "4610",
+      purchaseOrderReference: order.poNumber,
+      invoiceLines: order.lines.map(line => ({
+        description: line.item?.name || 'Inventory Item',
+        itemType: "GS1",
+        itemCode: line.item?.sku || 'SKU',
+        unitType: line.uom || 'EA',
+        quantity: line.receivedQty,
+        unitValue: { currencySold: "EGP", amountEGP: line.unitCost },
+        salesTotal: line.receivedQty * line.unitCost,
+        taxableItems: [
+          { taxType: "T1", amount: (line.receivedQty * line.unitCost) * 0.14, subType: "V009", rate: 14 }
+        ]
+      }))
+    };
+
+    res.json({ success: true, etaPayload });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to export ETA payload', error: err.message });
+  }
+};
+

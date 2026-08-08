@@ -1,153 +1,242 @@
-const mongoose = require('mongoose');
-const crypto = require('crypto');
 const StockTransaction = require('../models/StockTransaction');
 const StockLevel = require('../models/StockLevel');
+const InventoryItem = require('../models/InventoryItem');
 const Lot = require('../models/Lot');
-const Serial = require('../models/Serial');
-const ReceivingOrder = require('../models/ReceivingOrder');
-const PickTask = require('../models/PickTask');
-const Shipment = require('../models/Shipment');
-const ReturnOrder = require('../models/ReturnOrder');
-const CycleCount = require('../models/CycleCount');
-const PhysicalInventory = require('../models/PhysicalInventory');
-const InventoryAdjustment = require('../models/InventoryAdjustment');
-const StockTransfer = require('../models/StockTransfer');
+const ProductVariant = require('../models/ProductVariant');
 
-const INVENTORY_ROLES = [
-  'Super CRM Administrator',
-  'System Architect',
-  'Inventory Manager',
-  'Warehouse Manager',
-  'Receiving Clerk',
-  'Shipping Clerk',
-  'Warehouse Operator',
-  'Inventory Clerk',
-  'Quality Inspector'
-];
-
-function generateId(prefix) {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `${prefix}-${ts}-${rand}`;
-}
-
-function checkRole(user) {
-  if (!INVENTORY_ROLES.includes(user?.role)) {
-    throw new Error('Not authorized for inventory operations');
-  }
-}
-
-async function getOrCreateStockLevel(itemId, warehouseId, subinventory, locator = '', lotNumber = '', serialNumber = '') {
-  const query = {
+/**
+ * Recalculate and sync StockLevel balance from StockTransaction ledger
+ */
+async function syncStockLevel(itemId, warehouseId, subinventory = 'MAIN', locator = '') {
+  const transactions = await StockTransaction.find({
     item: itemId,
     warehouse: warehouseId,
-    subinventory: subinventory.toUpperCase(),
-    locator: (locator || '').toUpperCase(),
-    lotNumber: (lotNumber || '').toUpperCase(),
-    serialNumber: (serialNumber || '').toUpperCase()
-  };
+    subinventory,
+    status: 'Posted'
+  });
 
-  let stock = await StockLevel.findOne(query);
-  if (!stock) {
-    stock = await StockLevel.create({
-      ...query,
-      onHand: 0,
-      available: 0,
-      allocated: 0,
-      reserved: 0,
-      blocked: 0,
-      inTransit: 0
+  let onHand = 0;
+  let reserved = 0;
+  let allocated = 0;
+
+  for (const tx of transactions) {
+    if (['GOODS_RECEIPT', 'TRANSFER', 'ADJUSTMENT', 'RETURN_RECEIPT'].includes(tx.type)) {
+      onHand += tx.quantity;
+    } else if (['GOODS_ISSUE'].includes(tx.type)) {
+      onHand -= Math.abs(tx.quantity);
+    } else if (tx.type === 'RESERVATION') {
+      reserved += tx.quantity;
+    } else if (tx.type === 'ALLOCATION') {
+      allocated += tx.quantity;
+    } else if (tx.type === 'RELEASE') {
+      reserved = Math.max(0, reserved - tx.quantity);
+    }
+  }
+
+  const available = Math.max(0, onHand - reserved - allocated);
+
+  let stockLevel = await StockLevel.findOne({
+    item: itemId,
+    warehouse: warehouseId,
+    subinventory
+  });
+
+  if (!stockLevel) {
+    stockLevel = new StockLevel({
+      item: itemId,
+      warehouse: warehouseId,
+      subinventory,
+      locator,
+      onHand: Math.max(0, onHand),
+      reserved,
+      allocated,
+      available
     });
-  }
-  return stock;
-}
-
-async function postTransaction(data) {
-  const txn = await StockTransaction.create(data);
-  return txn;
-}
-
-async function updateStockLevel(stockLevel, quantityDelta, type) {
-  stockLevel.onHand = Math.max(0, stockLevel.onHand + quantityDelta);
-
-  if (type === 'GOODS_RECEIPT' || type === 'RETURN_RECEIPT') {
-    stockLevel.available = Math.max(0, stockLevel.available + quantityDelta);
-  } else if (type === 'GOODS_ISSUE') {
-    stockLevel.available = Math.max(0, stockLevel.available - quantityDelta);
-    stockLevel.allocated = Math.max(0, stockLevel.allocated - quantityDelta);
-  } else if (type === 'TRANSFER') {
-    // Two-sided update: outbound and inbound handled separately by caller
-  } else if (type === 'ADJUSTMENT') {
-    stockLevel.available = Math.max(0, stockLevel.available + quantityDelta);
-  } else if (type === 'CYCLE_COUNT' || type === 'PHYSICAL_INVENTORY') {
-    stockLevel.available = Math.max(0, Math.min(stockLevel.available, stockLevel.onHand));
-  } else if (type === 'RESERVATION') {
-    stockLevel.available = Math.max(0, stockLevel.available - quantityDelta);
-    stockLevel.reserved = stockLevel.reserved + quantityDelta;
-  } else if (type === 'ALLOCATION') {
-    stockLevel.available = Math.max(0, stockLevel.available - quantityDelta);
-    stockLevel.allocated = stockLevel.allocated + quantityDelta;
-  } else if (type === 'RELEASE') {
-    stockLevel.available = stockLevel.available + quantityDelta;
-    stockLevel.allocated = Math.max(0, stockLevel.allocated - quantityDelta);
+  } else {
+    stockLevel.onHand = Math.max(0, onHand);
+    stockLevel.reserved = reserved;
+    stockLevel.allocated = allocated;
+    stockLevel.available = available;
+    if (locator) stockLevel.locator = locator;
   }
 
-  stockLevel.lastTransactionDate = new Date();
   await stockLevel.save();
   return stockLevel;
 }
 
-async function updateLotQuantity(lotId, quantityDelta, fallbackItem, fallbackWarehouse, fallbackSubinventory, fallbackLotNumber) {
-  let lot = null;
-  if (lotId) {
-    lot = await Lot.findById(lotId);
-  } else if (fallbackItem && fallbackWarehouse && fallbackSubinventory && fallbackLotNumber) {
-    lot = await Lot.findOne({
-      item: fallbackItem,
-      warehouse: fallbackWarehouse,
-      subinventory: fallbackSubinventory.toUpperCase(),
-      lotNumber: fallbackLotNumber.toUpperCase()
+/**
+ * FEFO (First Expired -> First Out) batch selector
+ */
+async function getFefoRecommendedBatches(itemId, warehouseId, requiredQty) {
+  const now = new Date();
+  const availableLots = await Lot.find({
+    item: itemId,
+    warehouse: warehouseId,
+    status: 'Unrestricted',
+    quantity: { $gt: 0 },
+    expiryDate: { $gt: now }
+  }).sort({ expiryDate: 1 }); // Sort by earliest expiry first
+
+  let remaining = requiredQty;
+  const selected = [];
+
+  for (const lot of availableLots) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, lot.quantity);
+    selected.push({
+      lotId: lot._id,
+      lotNumber: lot.lotNumber,
+      expiryDate: lot.expiryDate,
+      availableQty: lot.quantity,
+      takeQty: take
+    });
+    remaining -= take;
+  }
+
+  return {
+    fulfilled: remaining <= 0,
+    shortageQty: Math.max(0, remaining),
+    selectedBatches: selected
+  };
+}
+
+/**
+ * Landed Cost Allocation Engine (Import Purchasing)
+ */
+function calculateLandedCostAllocation(lines, extraCosts, method = 'By Value') {
+  // lines: Array of { item, quantity, purchaseUnitPrice }
+  // extraCosts: { freight, insurance, customs, handling, inlandTransport, other }
+  const totalExtraCost = Object.values(extraCosts).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
+
+  const totalBaseValue = lines.reduce((acc, line) => acc + (line.quantity * line.purchaseUnitPrice), 0);
+  const totalBaseQty = lines.reduce((acc, line) => acc + line.quantity, 0);
+
+  return lines.map(line => {
+    const lineValue = line.quantity * line.purchaseUnitPrice;
+    let shareRatio = 0;
+
+    if (method === 'By Value' && totalBaseValue > 0) {
+      shareRatio = lineValue / totalBaseValue;
+    } else if (method === 'By Quantity' && totalBaseQty > 0) {
+      shareRatio = line.quantity / totalBaseQty;
+    } else {
+      shareRatio = lines.length > 0 ? 1 / lines.length : 0;
+    }
+
+    const allocatedCost = totalExtraCost * shareRatio;
+    const totalLineLandedCost = lineValue + allocatedCost;
+    const unitLandedCost = line.quantity > 0 ? totalLineLandedCost / line.quantity : 0;
+
+    return {
+      item: line.item,
+      quantity: line.quantity,
+      purchaseUnitPrice: line.purchaseUnitPrice,
+      allocatedCost: Math.round(allocatedCost * 100) / 100,
+      unitLandedCost: Math.round(unitLandedCost * 100) / 100,
+      totalLineLandedCost: Math.round(totalLineLandedCost * 100) / 100
+    };
+  });
+}
+
+/**
+ * ABC Classification Recalculation Engine (80 / 15 / 5 Rule)
+ */
+async function recalculateAbcClassification() {
+  const items = await InventoryItem.find({ status: 'Active' });
+  const stockLevels = await StockLevel.find({});
+
+  const itemValues = items.map(item => {
+    const itemLevels = stockLevels.filter(sl => sl.item.toString() === item._id.toString());
+    const totalQty = itemLevels.reduce((sum, sl) => sum + sl.onHand, 0);
+    const totalValue = totalQty * (item.unitCost || item.sellingPrice || 0);
+    return { item, totalQty, totalValue };
+  });
+
+  // Sort descending by total monetary value
+  itemValues.sort((a, b) => b.totalValue - a.totalValue);
+
+  const grandTotalValue = itemValues.reduce((sum, iv) => sum + iv.totalValue, 0);
+  let cumulativeValue = 0;
+
+  for (const iv of itemValues) {
+    cumulativeValue += iv.totalValue;
+    const pct = grandTotalValue > 0 ? (cumulativeValue / grandTotalValue) * 100 : 0;
+
+    let category = 'C';
+    if (pct <= 80) category = 'A';
+    else if (pct <= 95) category = 'B';
+    else category = 'C';
+
+    if (iv.item.abcClassification !== category) {
+      iv.item.abcClassification = category;
+      await iv.item.save();
+    }
+  }
+
+  return itemValues;
+}
+
+/**
+ * Inventory Valuation & Accounting Journal Entry Generator
+ */
+async function generateInventoryValuationReport(methodOverride = null) {
+  const items = await InventoryItem.find({ status: 'Active' });
+  const stockLevels = await StockLevel.find({}).populate('warehouse', 'code name');
+
+  let totalCompanyValuation = 0;
+  const valuationRows = [];
+
+  for (const item of items) {
+    const itemLevels = stockLevels.filter(sl => sl.item.toString() === item._id.toString());
+    const onHand = itemLevels.reduce((sum, sl) => sum + sl.onHand, 0);
+    const method = methodOverride || item.valuationMethod || 'FIFO';
+
+    const unitCost = item.unitCost || 0;
+    const landedCost = item.landedCostUnit || 0;
+    const effectiveCost = landedCost > 0 ? landedCost : unitCost;
+
+    const inventoryValue = onHand * effectiveCost;
+    totalCompanyValuation += inventoryValue;
+
+    valuationRows.push({
+      itemId: item._id,
+      sku: item.sku,
+      name: item.name,
+      category: item.category,
+      valuationMethod: method,
+      onHandQty: onHand,
+      unitCost: effectiveCost,
+      inventoryValue: Math.round(inventoryValue * 100) / 100,
+      warehouses: itemLevels.map(sl => ({
+        warehouseCode: sl.warehouse?.code || 'WH',
+        onHand: sl.onHand,
+        value: sl.onHand * effectiveCost
+      }))
     });
   }
 
-  if (lot) {
-    lot.quantity = Math.max(0, lot.quantity + quantityDelta);
-    if (lot.quantity === 0) {
-      await lot.deleteOne();
-    } else {
-      await lot.save();
-    }
-  }
-  return lot;
+  const accountingJournalEntryPreview = {
+    journalId: `JV-INV-${Date.now().toString().slice(-6)}`,
+    date: new Date(),
+    narrative: `Inventory Valuation Financial Summary (${valuationRows.length} active products)`,
+    entries: [
+      { account: '1400 - Inventory Asset', debit: totalCompanyValuation, credit: 0 },
+      { account: '2100 - Goods Received Clearing / AP', debit: 0, credit: totalCompanyValuation }
+    ]
+  };
+
+  return {
+    totalCompanyValuation: Math.round(totalCompanyValuation * 100) / 100,
+    itemCount: valuationRows.length,
+    valuationRows,
+    accountingJournalEntryPreview
+  };
 }
 
-async function updateSerialStatus(serialId, status) {
-  if (!serialId) return null;
-  const serial = await Serial.findById(serialId);
-  if (serial) {
-    serial.status = status;
-    await serial.save();
-  }
-  return serial;
-}
-
-exports.INVENTORY_ROLES = INVENTORY_ROLES;
-exports.generateId = generateId;
-exports.checkRole = checkRole;
-exports.getOrCreateStockLevel = getOrCreateStockLevel;
-exports.postTransaction = postTransaction;
-exports.updateStockLevel = updateStockLevel;
-exports.updateLotQuantity = updateLotQuantity;
-exports.updateSerialStatus = updateSerialStatus;
-exports.StockLevel = StockLevel;
-exports.StockTransaction = StockTransaction;
-exports.Lot = Lot;
-exports.Serial = Serial;
-exports.ReceivingOrder = ReceivingOrder;
-exports.PickTask = PickTask;
-exports.Shipment = Shipment;
-exports.ReturnOrder = ReturnOrder;
-exports.CycleCount = CycleCount;
-exports.PhysicalInventory = PhysicalInventory;
-exports.InventoryAdjustment = InventoryAdjustment;
-exports.StockTransfer = StockTransfer;
+module.exports = {
+  syncStockLevel,
+  getFefoRecommendedBatches,
+  calculateLandedCostAllocation,
+  recalculateAbcClassification,
+  generateInventoryValuationReport
+};

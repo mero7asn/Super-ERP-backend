@@ -90,6 +90,42 @@ const inventoryItemSchema = new mongoose.Schema({
     default: 1,
     min: 1
   },
+  safetyStock: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  leadTimeDays: {
+    type: Number,
+    default: 7,
+    min: 0
+  },
+  valuationMethod: {
+    type: String,
+    enum: ['FIFO', 'Weighted Average', 'Standard Cost'],
+    default: 'FIFO'
+  },
+  abcClassification: {
+    type: String,
+    enum: ['A', 'B', 'C'],
+    default: 'B'
+  },
+  supplierSku: {
+    type: String,
+    default: ''
+  },
+  landedCostUnit: {
+    type: Number,
+    default: 0
+  },
+  companyId: {
+    type: String,
+    default: 'COMP-01'
+  },
+  branchId: {
+    type: String,
+    default: 'Cairo Main'
+  },
   imageUrl: {
     type: String,
     default: ''
