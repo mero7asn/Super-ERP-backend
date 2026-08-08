@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
+const invController = require('../controllers/inventoryController');
 const {
   getInventoryItems, createInventoryItem, updateInventoryItem, deleteInventoryItem,
   getStockLevels, getStockTransactions, postGoodsReceipt, postGoodsIssue,
@@ -96,8 +97,6 @@ router.get('/alerts/expiry', getExpiryAlerts);
 router.get('/putaway/suggest', getPutawaySuggestion);
 
 // --- Ecosystem Extensions ----------------------------------------------------
-const invController = require('../controllers/inventoryController');
-
 router.get('/variants', invController.getVariants);
 router.post('/variants', invController.createVariant);
 router.post('/variants/generate-matrix', invController.generateVariantMatrix);
