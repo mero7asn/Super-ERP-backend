@@ -1,6 +1,6 @@
 /**
  * payrollController.js
- * Enterprise Payroll AI Agents — Backend Controller
+ * Enterprise Payroll AI Agents ï¿½ Backend Controller
  * Covers: Payroll Engine, Personal Agent, Manager Agent,
  *         Fraud Detection, Analytics, Loans, Alerts
  */
@@ -30,9 +30,12 @@ const PAYROLL_ROLES = [
   'HR Director / Executive HR User',
   'HRM System Administrator',
   'CRM core Administrator',
+  'Core 360 Administrator',
+  'System Architect',
+  'Executive User',
 ];
 
-// Can generate runs, approve, and request release — but NOT directly release
+// Can generate runs, approve, and request release ï¿½ but NOT directly release
 const isPayrollManager = (user) => PAYROLL_ROLES.includes(user?.role);
 
 // Senior roles that can confirm a release (final authority)
@@ -41,6 +44,9 @@ const SENIOR_ROLES = [
   'HR Director / Executive HR User',
   'HRM System Administrator',
   'CRM core Administrator',
+  'Core 360 Administrator',
+  'System Architect',
+  'Executive User',
 ];
 const isSeniorManager = (user) => SENIOR_ROLES.includes(user?.role);
 
@@ -78,7 +84,7 @@ const calcSocialInsurance = (basicSalary) => Math.round(basicSalary * 0.11);
 exports.getPayrollRuns = async (req, res) => {
   try {
     if (!isPayrollManager(req.user)) {
-      return res.status(403).json({ message: 'Access denied — Payroll Manager role required.' });
+      return res.status(403).json({ message: 'Access denied ï¿½ Payroll Manager role required.' });
     }
     const runs = await PayrollRun.find()
       .populate('createdBy', 'firstName lastName role')
@@ -325,7 +331,7 @@ exports.releasePayrollRun = async (req, res) => {
     const run = await PayrollRun.findById(req.params.id);
     if (!run) return res.status(404).json({ message: 'Payroll run not found.' });
 
-    // Payroll Specialist — can only request release, not confirm it
+    // Payroll Specialist ï¿½ can only request release, not confirm it
     if (!isSeniorManager(req.user)) {
       if (run.status !== 'Approved') {
         return res.status(400).json({ message: `Run must be Approved before requesting release (current: ${run.status}).` });
@@ -341,7 +347,7 @@ exports.releasePayrollRun = async (req, res) => {
       return res.json({ success: true, message: 'Release requested. Awaiting senior manager approval.', data: run });
     }
 
-    // Senior manager — can confirm release from Approved or PendingRelease
+    // Senior manager ï¿½ can confirm release from Approved or PendingRelease
     if (run.status !== 'Approved' && run.status !== 'PendingRelease') {
       return res.status(400).json({ message: `Run must be Approved or PendingRelease before release (current: ${run.status}).` });
     }
@@ -429,7 +435,7 @@ exports.releasePayrollRun = async (req, res) => {
         entry.failureReason = '';
         paidCount++;
       } catch (err) {
-        // Failure — log it, mark entry failed
+        // Failure ï¿½ log it, mark entry failed
         await PaymentTransaction.findByIdAndUpdate(txn._id, {
           status: 'Failed',
           failureReason: err.message,
@@ -463,7 +469,7 @@ exports.releasePayrollRun = async (req, res) => {
     await run.save();
     res.json({
       success: true,
-      message: `Payroll released${willBeLive ? ' (LIVE — real funds disbursed)' : ' (SIMULATION — no real funds moved)'}. ${paidCount} paid, ${failedCount} failed — check Transaction Log for details.`,
+      message: `Payroll released${willBeLive ? ' (LIVE ï¿½ real funds disbursed)' : ' (SIMULATION ï¿½ no real funds moved)'}. ${paidCount} paid, ${failedCount} failed ï¿½ check Transaction Log for details.`,
       data: { ...run.toObject(), liveMode: willBeLive },
     });
   } catch (err) {
@@ -488,7 +494,7 @@ exports.getRunEntries = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 5b. DISBURSEMENT QUEUE — get all Failed entries across released runs
+// 5b. DISBURSEMENT QUEUE ï¿½ get all Failed entries across released runs
 // -----------------------------------------------------------------
 exports.getDisbursementQueue = async (req, res) => {
   try {
@@ -504,11 +510,11 @@ exports.getDisbursementQueue = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 5c. RETRY DISBURSEMENT — manually mark a Failed entry as Paid
+// 5c. RETRY DISBURSEMENT ï¿½ manually mark a Failed entry as Paid
 // -----------------------------------------------------------------
 exports.retryDisbursement = async (req, res) => {
   try {
-    if (!isSeniorManager(req.user)) return res.status(403).json({ message: 'Access denied — senior manager required.' });
+    if (!isSeniorManager(req.user)) return res.status(403).json({ message: 'Access denied ï¿½ senior manager required.' });
     const entry = await PayrollEntry.findById(req.params.id);
     if (!entry) return res.status(404).json({ message: 'Entry not found.' });
     if (entry.status !== 'Failed') return res.status(400).json({ message: 'Entry is not in Failed status.' });
@@ -539,7 +545,7 @@ exports.getMyPayslips = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 7. LOANS — GET
+// 7. LOANS ï¿½ GET
 // -----------------------------------------------------------------
 exports.getLoans = async (req, res) => {
   try {
@@ -555,7 +561,7 @@ exports.getLoans = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 8. LOANS — CREATE
+// 8. LOANS ï¿½ CREATE
 // -----------------------------------------------------------------
 exports.createLoan = async (req, res) => {
   try {
@@ -588,7 +594,7 @@ exports.createLoan = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 9. LOANS — UPDATE STATUS
+// 9. LOANS ï¿½ UPDATE STATUS
 // -----------------------------------------------------------------
 exports.updateLoan = async (req, res) => {
   try {
@@ -602,7 +608,7 @@ exports.updateLoan = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 10. ALERTS — GET
+// 10. ALERTS ï¿½ GET
 // -----------------------------------------------------------------
 exports.getAlerts = async (req, res) => {
   try {
@@ -625,7 +631,7 @@ exports.getAlerts = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// 11. ALERTS — UPDATE STATUS
+// 11. ALERTS ï¿½ UPDATE STATUS
 // -----------------------------------------------------------------
 exports.updateAlertStatus = async (req, res) => {
   try {
@@ -763,23 +769,23 @@ exports.personalAgentQuery = async (req, res) => {
     // Payslip / salary breakdown
     if (q.includes('payslip') || q.includes('pay slip') || q.includes('salary breakdown') || q.includes('my salary') || q.includes('show my pay')) {
       if (lastPayslip) {
-        response = `?? **Your Latest Payslip — ${lastPayslip.period}**\n\n` +
+        response = `?? **Your Latest Payslip ï¿½ ${lastPayslip.period}**\n\n` +
           `**EARNINGS**\n` +
-          `• Base Salary: ${lastPayslip.baseSalary.toLocaleString()} EGP\n` +
-          `• Transport Allowance: ${lastPayslip.transportAllowance.toLocaleString()} EGP\n` +
-          `• Housing Allowance: ${lastPayslip.housingAllowance.toLocaleString()} EGP\n` +
-          `• Meal Allowance: ${lastPayslip.mealAllowance.toLocaleString()} EGP\n` +
-          `• Mobile Allowance: ${lastPayslip.mobileAllowance.toLocaleString()} EGP\n` +
-          `• Fuel Allowance: ${lastPayslip.fuelAllowance.toLocaleString()} EGP\n` +
-          `• Performance Bonus: ${lastPayslip.performanceBonus.toLocaleString()} EGP\n` +
-          `• Overtime: ${lastPayslip.overtimeAmount.toLocaleString()} EGP\n` +
+          `ï¿½ Base Salary: ${lastPayslip.baseSalary.toLocaleString()} EGP\n` +
+          `ï¿½ Transport Allowance: ${lastPayslip.transportAllowance.toLocaleString()} EGP\n` +
+          `ï¿½ Housing Allowance: ${lastPayslip.housingAllowance.toLocaleString()} EGP\n` +
+          `ï¿½ Meal Allowance: ${lastPayslip.mealAllowance.toLocaleString()} EGP\n` +
+          `ï¿½ Mobile Allowance: ${lastPayslip.mobileAllowance.toLocaleString()} EGP\n` +
+          `ï¿½ Fuel Allowance: ${lastPayslip.fuelAllowance.toLocaleString()} EGP\n` +
+          `ï¿½ Performance Bonus: ${lastPayslip.performanceBonus.toLocaleString()} EGP\n` +
+          `ï¿½ Overtime: ${lastPayslip.overtimeAmount.toLocaleString()} EGP\n` +
           `**Gross Earnings: ${lastPayslip.grossEarnings.toLocaleString()} EGP**\n\n` +
           `**DEDUCTIONS**\n` +
-          `• Income Tax: -${lastPayslip.incomeTax.toLocaleString()} EGP\n` +
-          `• Social Insurance (11%): -${lastPayslip.socialInsurance.toLocaleString()} EGP\n` +
-          `• Loan Installment: -${lastPayslip.loanDeduction.toLocaleString()} EGP\n` +
-          `• Leave Without Pay (${lastPayslip.leaveWithoutPayDays} days): -${lastPayslip.leaveWithoutPay.toLocaleString()} EGP\n` +
-          `• Other Deductions: -${lastPayslip.otherDeductions.toLocaleString()} EGP\n` +
+          `ï¿½ Income Tax: -${lastPayslip.incomeTax.toLocaleString()} EGP\n` +
+          `ï¿½ Social Insurance (11%): -${lastPayslip.socialInsurance.toLocaleString()} EGP\n` +
+          `ï¿½ Loan Installment: -${lastPayslip.loanDeduction.toLocaleString()} EGP\n` +
+          `ï¿½ Leave Without Pay (${lastPayslip.leaveWithoutPayDays} days): -${lastPayslip.leaveWithoutPay.toLocaleString()} EGP\n` +
+          `ï¿½ Other Deductions: -${lastPayslip.otherDeductions.toLocaleString()} EGP\n` +
           `**Total Deductions: -${lastPayslip.totalDeductions.toLocaleString()} EGP**\n\n` +
           `?? **NET SALARY: ${lastPayslip.netSalary.toLocaleString()} EGP**\n\n` +
           (prevPayslip
@@ -789,10 +795,10 @@ exports.personalAgentQuery = async (req, res) => {
         const est = baseSalary - estimatedTax - socialIns;
         response = `?? **Estimated Salary Breakdown for ${emp.firstName}**\n\n` +
           `Your payroll has not been processed yet for this period. Based on your contract:\n\n` +
-          `• Base Salary: ${baseSalary.toLocaleString()} EGP\n` +
-          `• Estimated Tax: -${estimatedTax.toLocaleString()} EGP\n` +
-          `• Social Insurance (11%): -${socialIns.toLocaleString()} EGP\n` +
-          `• **Estimated Net: ~${est.toLocaleString()} EGP**\n\n` +
+          `ï¿½ Base Salary: ${baseSalary.toLocaleString()} EGP\n` +
+          `ï¿½ Estimated Tax: -${estimatedTax.toLocaleString()} EGP\n` +
+          `ï¿½ Social Insurance (11%): -${socialIns.toLocaleString()} EGP\n` +
+          `ï¿½ **Estimated Net: ~${est.toLocaleString()} EGP**\n\n` +
           `Actual payslip will be available once payroll is processed for this period.`;
       } else {
         response = `?? No contract or payslip found for your account. Please contact HR to set up your employment contract.`;
@@ -809,9 +815,9 @@ exports.personalAgentQuery = async (req, res) => {
         response = `?? **Salary Change Analysis: ${prevPayslip.period} ? ${lastPayslip.period}**\n\n` +
           `Your net salary ${diff >= 0 ? 'increased' : 'decreased'} by **${Math.abs(diff).toLocaleString()} EGP**.\n\n` +
           `**Key Changes:**\n` +
-          (taxDiff !== 0 ? `• Income Tax: ${taxDiff > 0 ? '+' : ''}${taxDiff.toLocaleString()} EGP ${taxDiff > 0 ? '(higher taxable income)' : '(lower taxable income)'}\n` : '') +
-          (lwpDiff !== 0 ? `• Leave Without Pay: ${lwpDiff > 0 ? '+' : ''}${lwpDiff.toLocaleString()} EGP (${lastPayslip.leaveWithoutPayDays} days deducted)\n` : '') +
-          (loanDiff !== 0 ? `• Loan Installment: ${loanDiff > 0 ? '+' : ''}${loanDiff.toLocaleString()} EGP\n` : '') +
+          (taxDiff !== 0 ? `ï¿½ Income Tax: ${taxDiff > 0 ? '+' : ''}${taxDiff.toLocaleString()} EGP ${taxDiff > 0 ? '(higher taxable income)' : '(lower taxable income)'}\n` : '') +
+          (lwpDiff !== 0 ? `ï¿½ Leave Without Pay: ${lwpDiff > 0 ? '+' : ''}${lwpDiff.toLocaleString()} EGP (${lastPayslip.leaveWithoutPayDays} days deducted)\n` : '') +
+          (loanDiff !== 0 ? `ï¿½ Loan Installment: ${loanDiff > 0 ? '+' : ''}${loanDiff.toLocaleString()} EGP\n` : '') +
           `\nIf you believe there is an error, you can raise a payslip correction request via the Payroll Requests tab.`;
       } else {
         response = `?? I need at least two months of payroll data to compare. Your most recent payslip data is being prepared. Please check back after payroll is processed.`;
@@ -826,11 +832,11 @@ exports.personalAgentQuery = async (req, res) => {
       const grossLoss = Math.round(dailyRate * days);
       const taxSaved  = Math.round(calcIncomeTax((baseSalary - grossLoss) * 12) - estimatedTax);
       const netLoss   = grossLoss + taxSaved;
-      response = `?? **Leave Impact Calculator — ${days} Day(s) Without Pay**\n\n` +
-        `• Daily Rate: ${Math.round(dailyRate).toLocaleString()} EGP/day\n` +
-        `• Gross Salary Reduction: -${grossLoss.toLocaleString()} EGP\n` +
-        `• Tax Saving (lower income): +${Math.abs(taxSaved).toLocaleString()} EGP\n` +
-        `• **Estimated Net Loss: ~${Math.max(0, netLoss).toLocaleString()} EGP**\n\n` +
+      response = `?? **Leave Impact Calculator ï¿½ ${days} Day(s) Without Pay**\n\n` +
+        `ï¿½ Daily Rate: ${Math.round(dailyRate).toLocaleString()} EGP/day\n` +
+        `ï¿½ Gross Salary Reduction: -${grossLoss.toLocaleString()} EGP\n` +
+        `ï¿½ Tax Saving (lower income): +${Math.abs(taxSaved).toLocaleString()} EGP\n` +
+        `ï¿½ **Estimated Net Loss: ~${Math.max(0, netLoss).toLocaleString()} EGP**\n\n` +
         `Your remaining annual leave balance: **${remainingLeave} day(s)** (of 21 total).\n` +
         `?? *Tip: Approved Annual Leave does not deduct from your salary.*`;
     }
@@ -841,12 +847,12 @@ exports.personalAgentQuery = async (req, res) => {
         const monthsLeft = Math.ceil(activeLoan.remainingBalance / activeLoan.monthlyInstallment);
         const settlementDate = new Date();
         settlementDate.setMonth(settlementDate.getMonth() + monthsLeft);
-        response = `?? **Your Active Loan — ${activeLoan.loanType}**\n\n` +
-          `• Principal Amount: ${activeLoan.principalAmount.toLocaleString()} EGP\n` +
-          `• Remaining Balance: ${activeLoan.remainingBalance.toLocaleString()} EGP\n` +
-          `• Monthly Installment: ${activeLoan.monthlyInstallment.toLocaleString()} EGP/month\n` +
-          `• Months Remaining: ~${monthsLeft} months\n` +
-          `• Estimated Settlement: ${settlementDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}\n\n` +
+        response = `?? **Your Active Loan ï¿½ ${activeLoan.loanType}**\n\n` +
+          `ï¿½ Principal Amount: ${activeLoan.principalAmount.toLocaleString()} EGP\n` +
+          `ï¿½ Remaining Balance: ${activeLoan.remainingBalance.toLocaleString()} EGP\n` +
+          `ï¿½ Monthly Installment: ${activeLoan.monthlyInstallment.toLocaleString()} EGP/month\n` +
+          `ï¿½ Months Remaining: ~${monthsLeft} months\n` +
+          `ï¿½ Estimated Settlement: ${settlementDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}\n\n` +
           `?? Reason: ${activeLoan.reason || 'N/A'}\n` +
           `?? *Contact payroll for early settlement options.*`;
       } else {
@@ -858,25 +864,25 @@ exports.personalAgentQuery = async (req, res) => {
     else if (q.includes('tax') || q.includes('income tax') || q.includes('deduct') && q.includes('tax')) {
       response = `?? **Income Tax Explanation for ${emp.firstName}**\n\n` +
         `Egypt uses a **progressive income tax** system. Based on your annual gross of **${(baseSalary * 12).toLocaleString()} EGP**:\n\n` +
-        `• 0% on first 15,000 EGP/year\n` +
-        `• 2.5% on 15,001–30,000 EGP/year\n` +
-        `• 10% on 30,001–45,000 EGP/year\n` +
-        `• 15% on 45,001–60,000 EGP/year\n` +
-        `• 20% on 60,001–200,000 EGP/year\n` +
-        `• 22.5% on 200,001–400,000 EGP/year\n` +
-        `• 27.5% above 400,000 EGP/year\n\n` +
+        `ï¿½ 0% on first 15,000 EGP/year\n` +
+        `ï¿½ 2.5% on 15,001ï¿½30,000 EGP/year\n` +
+        `ï¿½ 10% on 30,001ï¿½45,000 EGP/year\n` +
+        `ï¿½ 15% on 45,001ï¿½60,000 EGP/year\n` +
+        `ï¿½ 20% on 60,001ï¿½200,000 EGP/year\n` +
+        `ï¿½ 22.5% on 200,001ï¿½400,000 EGP/year\n` +
+        `ï¿½ 27.5% above 400,000 EGP/year\n\n` +
         `**Your estimated monthly income tax: ${estimatedTax.toLocaleString()} EGP**\n\n` +
-        `?? *Social Insurance (11% of basic salary) = ${socialIns.toLocaleString()} EGP/month — this is separate from income tax.*`;
+        `?? *Social Insurance (11% of basic salary) = ${socialIns.toLocaleString()} EGP/month ï¿½ this is separate from income tax.*`;
     }
 
     // Leave balance
     else if (q.includes('leave balance') || q.includes('vacation') || q.includes('annual leave') || q.includes('how many days')) {
-      response = `?? **Your Leave Balance — ${currentYear}**\n\n` +
-        `• Annual Leave Entitlement: **21 days**\n` +
-        `• Days Used (${currentYear}): **${approvedDays} days**\n` +
-        `• Remaining Balance: **${remainingLeave} days**\n\n` +
+      response = `?? **Your Leave Balance ï¿½ ${currentYear}**\n\n` +
+        `ï¿½ Annual Leave Entitlement: **21 days**\n` +
+        `ï¿½ Days Used (${currentYear}): **${approvedDays} days**\n` +
+        `ï¿½ Remaining Balance: **${remainingLeave} days**\n\n` +
         `**Recent Leave Requests:**\n` +
-        (leaves.slice(0, 5).map(l => `• ${l.leaveType}: ${new Date(l.startDate).toLocaleDateString()} – ${new Date(l.endDate).toLocaleDateString()} [${l.status}]`).join('\n') || '• No recent requests') +
+        (leaves.slice(0, 5).map(l => `ï¿½ ${l.leaveType}: ${new Date(l.startDate).toLocaleDateString()} ï¿½ ${new Date(l.endDate).toLocaleDateString()} [${l.status}]`).join('\n') || 'ï¿½ No recent requests') +
         `\n\n?? *To request leave, use the Leaves & Absence section in the Personal Department.*`;
     }
 
@@ -887,13 +893,13 @@ exports.personalAgentQuery = async (req, res) => {
       response = `?? **Bonus & Performance Summary for ${emp.firstName}**\n\n` +
         (avgKPI !== null
           ? `Your average KPI score: **${avgKPI}/100** (${bonusLabel})\n` +
-            `Recommended bonus: **+${bonusPct}%** ˜ ${Math.round(netSalary * (bonusPct || 0) / 100).toLocaleString()} EGP\n\n`
+            `Recommended bonus: **+${bonusPct}%** ï¿½ ${Math.round(netSalary * (bonusPct || 0) / 100).toLocaleString()} EGP\n\n`
           : `No KPI data available yet. Ask your manager to log your achievements.\n\n`) +
         `**Bonus Types Available:**\n` +
-        `• Performance Bonus — based on KPI scores\n` +
-        `• Attendance Bonus — perfect attendance in a month\n` +
-        `• Holiday Bonus — paid on major holidays\n` +
-        `• Sales Commission — applies to Sales roles\n\n` +
+        `ï¿½ Performance Bonus ï¿½ based on KPI scores\n` +
+        `ï¿½ Attendance Bonus ï¿½ perfect attendance in a month\n` +
+        `ï¿½ Holiday Bonus ï¿½ paid on major holidays\n` +
+        `ï¿½ Sales Commission ï¿½ applies to Sales roles\n\n` +
         `?? *All bonus approvals require manager and payroll specialist sign-off.*`;
     }
 
@@ -903,15 +909,15 @@ exports.personalAgentQuery = async (req, res) => {
       const estMeal      = baseSalary >= 10000 ? 300 : 150;
       response = `?? **Your Benefits & Allowances**\n\n` +
         `Based on your contract and role:\n\n` +
-        `• Transport Allowance: ${estTransport.toLocaleString()} EGP/month\n` +
-        `• Meal Allowance: ${estMeal.toLocaleString()} EGP/month\n` +
-        `• Mobile Allowance: 200 EGP/month\n` +
-        (baseSalary >= 20000 ? `• Housing Allowance: 2,000 EGP/month\n` : '') +
-        (emp.role?.includes('Manager') || emp.role?.includes('Director') ? `• Fuel Allowance: 1,000 EGP/month\n` : '') +
+        `ï¿½ Transport Allowance: ${estTransport.toLocaleString()} EGP/month\n` +
+        `ï¿½ Meal Allowance: ${estMeal.toLocaleString()} EGP/month\n` +
+        `ï¿½ Mobile Allowance: 200 EGP/month\n` +
+        (baseSalary >= 20000 ? `ï¿½ Housing Allowance: 2,000 EGP/month\n` : '') +
+        (emp.role?.includes('Manager') || emp.role?.includes('Director') ? `ï¿½ Fuel Allowance: 1,000 EGP/month\n` : '') +
         `\n**Benefits under company policy:**\n` +
-        `• Social Insurance (employer contribution: 18.75%)\n` +
-        `• Paid Annual Leave: 21 days/year\n` +
-        `• Sick Leave: up to 6 months with pay (scaled)\n\n` +
+        `ï¿½ Social Insurance (employer contribution: 18.75%)\n` +
+        `ï¿½ Paid Annual Leave: 21 days/year\n` +
+        `ï¿½ Sick Leave: up to 6 months with pay (scaled)\n\n` +
         `?? *Specific medical/dental insurance details are managed by HR.*`;
     }
 
@@ -919,12 +925,12 @@ exports.personalAgentQuery = async (req, res) => {
     else if (q.includes('certificate') || q.includes('letter') || q.includes('request') || q.includes('bank letter')) {
       response = `?? **Payroll Requests**\n\n` +
         `I can help you with the following requests. Please contact your HR representative or submit via the system:\n\n` +
-        `? **Salary Certificate** — confirms your current salary for banks/embassies\n` +
-        `? **Employment Letter** — confirms employment status and duration\n` +
-        `? **Payslip Copy** — for any past month\n` +
-        `? **Bank Account Update** — update your payment destination\n` +
-        `? **Payslip Correction** — dispute an incorrect payslip calculation\n` +
-        `? **Salary Advance** — request advance against next month's salary\n\n` +
+        `? **Salary Certificate** ï¿½ confirms your current salary for banks/embassies\n` +
+        `? **Employment Letter** ï¿½ confirms employment status and duration\n` +
+        `? **Payslip Copy** ï¿½ for any past month\n` +
+        `? **Bank Account Update** ï¿½ update your payment destination\n` +
+        `? **Payslip Correction** ï¿½ dispute an incorrect payslip calculation\n` +
+        `? **Salary Advance** ï¿½ request advance against next month's salary\n\n` +
         `?? *For formal requests, please email HR directly or use the Internal Emails feature.*\n\n` +
         `Your tenure: **${yearsWorked} year(s)** | Role: **${emp.role}**`;
     }
@@ -951,13 +957,13 @@ exports.personalAgentQuery = async (req, res) => {
       const lastOTHrs = lastPayslip?.overtimeHours || 0;
       response = `? **Overtime Summary**\n\n` +
         `**Last period overtime:**\n` +
-        `• Hours Worked: ${lastOTHrs} hrs\n` +
-        `• Overtime Pay: ${lastOT.toLocaleString()} EGP\n\n` +
+        `ï¿½ Hours Worked: ${lastOTHrs} hrs\n` +
+        `ï¿½ Overtime Pay: ${lastOT.toLocaleString()} EGP\n\n` +
         `**Overtime Rates (Egyptian Labor Law):**\n` +
-        `• Normal Overtime (Mon–Thu): Base daily rate × 1.35\n` +
-        `• Weekend Overtime (Fri–Sat): Base daily rate × 1.70\n` +
-        `• Holiday Overtime: Base daily rate × 2.00\n` +
-        `• Night Shift Premium: +25% on regular rate\n\n` +
+        `ï¿½ Normal Overtime (Monï¿½Thu): Base daily rate ï¿½ 1.35\n` +
+        `ï¿½ Weekend Overtime (Friï¿½Sat): Base daily rate ï¿½ 1.70\n` +
+        `ï¿½ Holiday Overtime: Base daily rate ï¿½ 2.00\n` +
+        `ï¿½ Night Shift Premium: +25% on regular rate\n\n` +
         `Daily Rate = ${Math.round(baseSalary / 30).toLocaleString()} EGP/day | Hourly Rate = ${Math.round(baseSalary / 30 / 8).toLocaleString()} EGP/hr\n\n` +
         `?? *Overtime must be approved before payroll processing.*`;
     }
@@ -969,7 +975,7 @@ exports.personalAgentQuery = async (req, res) => {
         insights.push('?? Your loan is ending in ~3 months. Net salary will increase by ' + activeLoan.monthlyInstallment.toLocaleString() + ' EGP once settled.');
       }
       if (avgKPI !== null && avgKPI >= 75) {
-        insights.push('?? Your KPI average is ' + avgKPI + '/100 — you qualify for a performance bonus recommendation.');
+        insights.push('?? Your KPI average is ' + avgKPI + '/100 ï¿½ you qualify for a performance bonus recommendation.');
       }
       if (remainingLeave <= 5) {
         insights.push('?? Only ' + remainingLeave + ' annual leave days remaining for ' + currentYear + '.');
@@ -986,14 +992,14 @@ exports.personalAgentQuery = async (req, res) => {
     else {
       response = `?? **Hello ${emp.firstName}! I'm your Payroll Personal Agent.**\n\n` +
         `I can help you with:\n\n` +
-        `?? **Salary** — "Show my payslip" | "Why is my salary different?" | "Compare with last month"\n` +
-        `?? **Leave** — "How many leave days do I have?" | "If I take 3 days unpaid leave, how much do I lose?"\n` +
-        `?? **Loans** — "What's my loan balance?" | "When does my loan end?"\n` +
-        `?? **Tax** — "Explain my tax deduction" | "How is my tax calculated?"\n` +
-        `? **Overtime** — "Explain my overtime"\n` +
-        `?? **Benefits** — "What allowances do I have?"\n` +
-        `?? **Bonus** — "Am I eligible for a bonus?"\n` +
-        `?? **Requests** — "I need a salary certificate"\n\n` +
+        `?? **Salary** ï¿½ "Show my payslip" | "Why is my salary different?" | "Compare with last month"\n` +
+        `?? **Leave** ï¿½ "How many leave days do I have?" | "If I take 3 days unpaid leave, how much do I lose?"\n` +
+        `?? **Loans** ï¿½ "What's my loan balance?" | "When does my loan end?"\n` +
+        `?? **Tax** ï¿½ "Explain my tax deduction" | "How is my tax calculated?"\n` +
+        `? **Overtime** ï¿½ "Explain my overtime"\n` +
+        `?? **Benefits** ï¿½ "What allowances do I have?"\n` +
+        `?? **Bonus** ï¿½ "Am I eligible for a bonus?"\n` +
+        `?? **Requests** ï¿½ "I need a salary certificate"\n\n` +
         `Just ask me anything about your payroll! ??`;
     }
 
@@ -1010,7 +1016,7 @@ exports.personalAgentQuery = async (req, res) => {
 exports.managerAgentQuery = async (req, res) => {
   try {
     if (!isPayrollManager(req.user)) {
-      return res.status(403).json({ message: 'Access denied — Payroll Manager role required.' });
+      return res.status(403).json({ message: 'Access denied ï¿½ Payroll Manager role required.' });
     }
 
     const { query, period } = req.body;
@@ -1047,13 +1053,13 @@ exports.managerAgentQuery = async (req, res) => {
       } else {
         response = `?? **Ready to Generate Payroll for ${targetPeriod}**\n\n` +
           `**Pre-flight Check:**\n` +
-          `• Employees with contracts: ${contracts.length}\n` +
-          `• Pending leave requests: ${leaves.length} (may affect LWP deductions)\n` +
-          `• Active loans: ${loans.length} (installments will be deducted)\n` +
-          `• Open alerts from previous periods: ${alerts.length}\n\n` +
+          `ï¿½ Employees with contracts: ${contracts.length}\n` +
+          `ï¿½ Pending leave requests: ${leaves.length} (may affect LWP deductions)\n` +
+          `ï¿½ Active loans: ${loans.length} (installments will be deducted)\n` +
+          `ï¿½ Open alerts from previous periods: ${alerts.length}\n\n` +
           `**Estimated Payroll Cost:**\n` +
-          `• Gross Total: ~${totalPayroll.toLocaleString()} EGP\n` +
-          `• Avg Salary: ${avgSalary.toLocaleString()} EGP\n\n` +
+          `ï¿½ Gross Total: ~${totalPayroll.toLocaleString()} EGP\n` +
+          `ï¿½ Avg Salary: ${avgSalary.toLocaleString()} EGP\n\n` +
           `? Click **"Generate Payroll Run"** in the Payroll Runs tab to proceed.\n` +
           `?? *Review all pending leave requests before running payroll to ensure accurate LWP calculations.*`;
       }
@@ -1067,7 +1073,7 @@ exports.managerAgentQuery = async (req, res) => {
         issues.push({ severity: 'Medium', msg: `${contractsWithoutEmail.length} employee(s) missing email/bank data: ${contractsWithoutEmail.map(c => c.employeeId?.firstName).join(', ')}` });
       }
       if (leaves.length) {
-        issues.push({ severity: 'Low', msg: `${leaves.length} leave request(s) pending approval — may affect LWP calculations.` });
+        issues.push({ severity: 'Low', msg: `${leaves.length} leave request(s) pending approval ï¿½ may affect LWP calculations.` });
       }
       const negSalContracts = contracts.filter(c => !c.baseSalary || c.baseSalary <= 0);
       if (negSalContracts.length) {
@@ -1077,15 +1083,15 @@ exports.managerAgentQuery = async (req, res) => {
         issues.push({ severity: 'Critical', msg: `${criticalAlerts.length} critical alerts still open from previous runs.` });
       }
 
-      response = `?? **Payroll Validation Report — ${targetPeriod}**\n\n` +
+      response = `?? **Payroll Validation Report ï¿½ ${targetPeriod}**\n\n` +
         (issues.length === 0
           ? `? All checks passed! Payroll appears ready to process.\n`
           : issues.map(i => `${i.severity === 'Critical' ? '??' : i.severity === 'High' ? '??' : i.severity === 'Medium' ? '??' : '??'} **${i.severity}:** ${i.msg}`).join('\n')) +
         `\n\n**Summary:**\n` +
-        `• Total employees: ${contracts.length}\n` +
-        `• Issues found: ${issues.length}\n` +
-        `• Validation confidence: ${Math.max(0, 100 - issues.length * 15)}%\n` +
-        `• Recommended action: ${issues.length === 0 ? 'Proceed to payroll generation' : 'Resolve critical/high issues first'}`;
+        `ï¿½ Total employees: ${contracts.length}\n` +
+        `ï¿½ Issues found: ${issues.length}\n` +
+        `ï¿½ Validation confidence: ${Math.max(0, 100 - issues.length * 15)}%\n` +
+        `ï¿½ Recommended action: ${issues.length === 0 ? 'Proceed to payroll generation' : 'Resolve critical/high issues first'}`;
     }
 
     // Fraud scan
@@ -1123,10 +1129,10 @@ exports.managerAgentQuery = async (req, res) => {
               `   Finding: ${f.detail}\n`
             ).join('\n')) +
         `\n\n**Scan Coverage:**\n` +
-        `• Ghost employee check: ?\n` +
-        `• Duplicate email/bank check: ?\n` +
-        `• Excessive overtime: ?\n` +
-        `• Repeated manual overrides: ?\n\n` +
+        `ï¿½ Ghost employee check: ?\n` +
+        `ï¿½ Duplicate email/bank check: ?\n` +
+        `ï¿½ Excessive overtime: ?\n` +
+        `ï¿½ Repeated manual overrides: ?\n\n` +
         `?? *All findings require human review before any action is taken.*`;
     }
 
@@ -1139,17 +1145,17 @@ exports.managerAgentQuery = async (req, res) => {
       const q2 = Math.round(currentMonth * (1 + (inflation + headcountGrowth) / 6));
       const annual = Math.round(currentMonth * 12 * (1 + (inflation + headcountGrowth) / 2));
 
-      response = `?? **Budget Forecast — Payroll Costs**\n\n` +
+      response = `?? **Budget Forecast ï¿½ Payroll Costs**\n\n` +
         `**Current Monthly Payroll:** ${currentMonth.toLocaleString()} EGP\n` +
         `**Headcount:** ${contracts.length} employees\n` +
         `**Avg Salary:** ${avgSalary.toLocaleString()} EGP\n\n` +
         `**Projections (10% inflation + 5% headcount growth):**\n` +
-        `• Next Month: ~${q1.toLocaleString()} EGP\n` +
-        `• In 3 Months: ~${q2.toLocaleString()} EGP\n` +
-        `• Annual Payroll Cost: ~${annual.toLocaleString()} EGP\n\n` +
+        `ï¿½ Next Month: ~${q1.toLocaleString()} EGP\n` +
+        `ï¿½ In 3 Months: ~${q2.toLocaleString()} EGP\n` +
+        `ï¿½ Annual Payroll Cost: ~${annual.toLocaleString()} EGP\n\n` +
         `**Loan Obligations:** ${loans.reduce((s, l) => s + l.monthlyInstallment, 0).toLocaleString()} EGP/month total\n` +
         `**Open Alerts Impact:** ~${alerts.reduce((s, a) => s + (a.estimatedImpact || 0), 0).toLocaleString()} EGP at risk\n\n` +
-        `?? *Confidence: 78% — based on current contracts and historical trends.*`;
+        `?? *Confidence: 78% ï¿½ based on current contracts and historical trends.*`;
     }
 
     // Department analytics
@@ -1184,20 +1190,20 @@ exports.managerAgentQuery = async (req, res) => {
           ? `? No compliance violations detected.\n\nAll ${contracts.length} employee contracts appear compliant with current regulations.`
           : violations.map(v => `?? **${v.rule}**\nAffected Employees (${v.count}): ${v.employees}`).join('\n\n')) +
         `\n\n**Regulations Checked:**\n` +
-        `• Egypt Minimum Wage (2,700 EGP) ?\n` +
-        `• Social Insurance (11% employee contribution) ?\n` +
-        `• Income Tax (progressive brackets) ?\n` +
-        `• Loan deduction limit (50% of salary) ?\n` +
-        `• Annual leave entitlement (21 days) ?\n` +
-        `• Maximum overtime hours ?\n\n` +
-        `?? *Compliance confidence: 91% — manual legal review recommended for complex cases.*`;
+        `ï¿½ Egypt Minimum Wage (2,700 EGP) ?\n` +
+        `ï¿½ Social Insurance (11% employee contribution) ?\n` +
+        `ï¿½ Income Tax (progressive brackets) ?\n` +
+        `ï¿½ Loan deduction limit (50% of salary) ?\n` +
+        `ï¿½ Annual leave entitlement (21 days) ?\n` +
+        `ï¿½ Maximum overtime hours ?\n\n` +
+        `?? *Compliance confidence: 91% ï¿½ manual legal review recommended for complex cases.*`;
     }
 
     // Approve / release intent
     else if (q.includes('approve') || q.includes('release') || q.includes('pay')) {
       response = `? **Payroll Approval & Release Workflow**\n\n` +
         (currentRun
-          ? `**Current Run: ${targetPeriod}** — Status: **${currentRun.status}**\n\n` +
+          ? `**Current Run: ${targetPeriod}** ï¿½ Status: **${currentRun.status}**\n\n` +
             (currentRun.status === 'Draft' ? `?? Next Step: **Approve** the run to lock it for payment.\n` :
              currentRun.status === 'Approved' ? `?? Next Step: **Release** the run to mark all salaries as Paid.\n` :
              currentRun.status === 'Released' ? `? Payroll has already been released for ${targetPeriod}.\n` : '') +
@@ -1211,7 +1217,7 @@ exports.managerAgentQuery = async (req, res) => {
 
     // Status summary / general
     else if (q.includes('status') || q.includes('overview') || q.includes('summary') || q.includes('dashboard')) {
-      response = `?? **Payroll Operations Dashboard — ${targetPeriod}**\n\n` +
+      response = `?? **Payroll Operations Dashboard ï¿½ ${targetPeriod}**\n\n` +
         `**Current Run:** ${currentRun ? `${currentRun.status} | ${currentRun.headcount} employees` : '?? Not generated yet'}\n` +
         `**Total Monthly Payroll:** ${totalPayroll.toLocaleString()} EGP\n` +
         `**Headcount:** ${contracts.length} employees\n` +
@@ -1220,21 +1226,21 @@ exports.managerAgentQuery = async (req, res) => {
         `**Active Loans:** ${loans.length} | Total Outstanding: ${loans.reduce((s, l) => s + l.remainingBalance, 0).toLocaleString()} EGP\n` +
         `**Pending Leave Approvals:** ${leaves.length}\n\n` +
         `**Recent Runs:**\n` +
-        runs.slice(0, 4).map(r => `• ${r.period}: ${r.status} | ${r.headcount || 0} employees | ${(r.totalNet || 0).toLocaleString()} EGP net`).join('\n');
+        runs.slice(0, 4).map(r => `ï¿½ ${r.period}: ${r.status} | ${r.headcount || 0} employees | ${(r.totalNet || 0).toLocaleString()} EGP net`).join('\n');
     }
 
     // Fallback / help
     else {
       response = `?? **Hello ${req.user.firstName}! I'm the Payroll Manager Agent.**\n\n` +
         `I have full visibility into your organization's payroll. Ask me:\n\n` +
-        `?? **Payroll Processing** — "Run payroll for 2025-07" | "Validate this period" | "Approve payroll"\n` +
-        `?? **Analytics** — "Department breakdown" | "Budget forecast" | "Top earners"\n` +
-        `?? **Fraud & Compliance** — "Scan for fraud" | "Compliance check" | "Review anomalies"\n` +
-        `?? **Forecasting** — "Predict next quarter cost" | "Hiring impact analysis"\n` +
-        `?? **Status** — "Show dashboard" | "Current run status" | "Open alerts summary"\n\n` +
+        `?? **Payroll Processing** ï¿½ "Run payroll for 2025-07" | "Validate this period" | "Approve payroll"\n` +
+        `?? **Analytics** ï¿½ "Department breakdown" | "Budget forecast" | "Top earners"\n` +
+        `?? **Fraud & Compliance** ï¿½ "Scan for fraud" | "Compliance check" | "Review anomalies"\n` +
+        `?? **Forecasting** ï¿½ "Predict next quarter cost" | "Hiring impact analysis"\n` +
+        `?? **Status** ï¿½ "Show dashboard" | "Current run status" | "Open alerts summary"\n\n` +
         `**Current Snapshot:**\n` +
-        `• ${contracts.length} employees | ${totalPayroll.toLocaleString()} EGP/month payroll\n` +
-        `• ${alerts.length} open alerts | ${criticalAlerts.length} critical`;
+        `ï¿½ ${contracts.length} employees | ${totalPayroll.toLocaleString()} EGP/month payroll\n` +
+        `ï¿½ ${alerts.length} open alerts | ${criticalAlerts.length} critical`;
     }
 
     res.json({ success: true, response, agentType: 'manager', timestamp: new Date() });

@@ -129,7 +129,7 @@ exports.updateInventoryItem = async (req, res) => {
 exports.deleteInventoryItem = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only administrators can delete inventory items.' });
 
     const item = await InventoryItem.findById(req.params.id);
@@ -808,7 +808,7 @@ exports.getSerials = async (req, res) => {
 exports.approveAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['CRM core Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can approve adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);
@@ -829,7 +829,7 @@ exports.approveAdjustment = async (req, res) => {
 exports.rejectAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['CRM core Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can reject adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);

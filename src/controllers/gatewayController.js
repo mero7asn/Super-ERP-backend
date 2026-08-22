@@ -17,6 +17,9 @@ const { VENDOR_CAPABILITIES, validateBankAccount } = require('../services/vendor
 
 const ADMIN_ROLES = [
   'CRM core Administrator',
+  'Core 360 Administrator',
+  'System Architect',
+  'Executive User',
   'HRM System Administrator',
   'HR Director / Executive HR User',
   'HR Manager',
@@ -36,7 +39,7 @@ exports.getGateways = async (req, res) => {
       .populate('configuredBy', 'firstName lastName')
       .populate('updatedBy', 'firstName lastName');
 
-    // Return masked versions — never expose raw encrypted strings to frontend
+    // Return masked versions ï¿½ never expose raw encrypted strings to frontend
     const masked = gateways.map(g => ({
       _id: g._id,
       provider: g.provider,
@@ -314,7 +317,7 @@ exports.retryTransaction = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// VENDOR CAPABILITIES — drives the dynamic bank-account form
+// VENDOR CAPABILITIES ï¿½ drives the dynamic bank-account form
 // Returns each vendor, its supported methods, required fields, and whether
 // an active gateway is currently configured for it.
 // -----------------------------------------------------------------
@@ -453,7 +456,7 @@ exports.deleteCompanyAccount = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// RELEASE READINESS CHECK — call before releasing a run
+// RELEASE READINESS CHECK ï¿½ call before releasing a run
 // Returns what's missing / what will happen (live vs simulation).
 // -----------------------------------------------------------------
 
@@ -482,7 +485,7 @@ exports.getReleaseReadiness = async (req, res) => {
     else if (!sourceAccount.isActive) issues.push(`Source account "${sourceAccount.nickname}" is inactive.`);
 
     if (!LIVE_MODE && run.disbursementMode === 'live') {
-      issues.push('DISBURSEMENT_LIVE_MODE is not enabled in the server environment — run will be simulated.');
+      issues.push('DISBURSEMENT_LIVE_MODE is not enabled in the server environment ï¿½ run will be simulated.');
     }
 
     for (const e of entries) {
@@ -523,7 +526,7 @@ exports.getReleaseReadiness = async (req, res) => {
 };
 
 // -----------------------------------------------------------------
-// GATEWAY WEBHOOK — reconcile transaction status from gateway callbacks
+// GATEWAY WEBHOOK ï¿½ reconcile transaction status from gateway callbacks
 // Expects: { provider, gatewayRefId? | gatewayOrderId?, status, signature? }
 // status maps to: SUCCESS | FAILED | REVERSED
 // -----------------------------------------------------------------

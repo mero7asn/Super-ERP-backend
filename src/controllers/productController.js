@@ -2,7 +2,7 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 
 const PRODUCT_ROLES = [
-  'CRM core Administrator', 'System Architect', 'Sales Agent',
+  'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Sales Agent',
   'Sales Manager', 'Executive User',
 ];
 

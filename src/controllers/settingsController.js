@@ -9,7 +9,7 @@ const BUSINESS_MODELS = ['service', 'product', 'both'];
 // @access  Private (Super Admin only)
 exports.getBusinessModel = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const setting = await SystemSetting.findOne({ key: 'businessModel' });
@@ -24,7 +24,7 @@ exports.getBusinessModel = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.updateBusinessModel = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -41,7 +41,7 @@ exports.updateBusinessModel = async (req, res) => {
 
     // If the acting user is the Super Admin, mark them as onboarded.
     const User = require('../models/User');
-    const isSuperAdmin = req.user.role === 'CRM core Administrator';
+    const isSuperAdmin = ['CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
     let onboarded = false;
     if (isSuperAdmin) {
       await User.findByIdAndUpdate(req.user._id, { onboarded: true });
@@ -59,7 +59,7 @@ exports.updateBusinessModel = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.getEmailSettings = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const cfg = await getGlobalEmailConfig();
@@ -75,7 +75,7 @@ exports.getEmailSettings = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.updateEmailSettings = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -107,7 +107,7 @@ exports.updateEmailSettings = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.getBrandingConfig = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const setting = await SystemSetting.findOne({ key: 'branding' });
@@ -122,7 +122,7 @@ exports.getBrandingConfig = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.updateBrandingConfig = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -149,7 +149,7 @@ exports.updateBrandingConfig = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.uploadBrandingLogo = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -185,7 +185,7 @@ exports.uploadBrandingLogo = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.getErpConfig = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const setting = await SystemSetting.findOne({ key: 'erp' });
@@ -197,7 +197,7 @@ exports.getErpConfig = async (req, res) => {
 
 exports.getTelephonyConfig = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const setting = await SystemSetting.findOne({ key: 'telephony' });
@@ -216,7 +216,7 @@ exports.getTelephonyConfig = async (req, res) => {
 
 exports.updateTelephonyConfig = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -251,7 +251,7 @@ exports.updateTelephonyConfig = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.updateErpConfig = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const { baseUrl } = req.body;
@@ -272,7 +272,7 @@ exports.updateErpConfig = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.testEmailSettings = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -291,7 +291,7 @@ exports.testEmailSettings = async (req, res) => {
     try {
       await sendRawEmail({
         to: user.email,
-        subject: 'Core 360 — SMTP Connection Test',
+        subject: 'Core 360 ï¿½ SMTP Connection Test',
         text: 'This is a test message confirming your global SMTP relay is working.',
       });
     } catch (sendErr) {
@@ -309,7 +309,7 @@ exports.testEmailSettings = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.getPricingSettings = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const [minOffer, minProduct, discountOverride] = await Promise.all([
@@ -341,7 +341,7 @@ exports.getPricingSettings = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.updatePricingSettings = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -408,7 +408,7 @@ exports.getCurrencies = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.updateCurrencies = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
@@ -451,7 +451,7 @@ exports.applyDiscount = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('createdBy', 'role');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isCreator = offer.createdBy._id.toString() === req.user._id.toString();
 
@@ -504,7 +504,7 @@ exports.applyDiscount = async (req, res) => {
 // @access  Private (Super Admin only)
 exports.deleteCurrency = async (req, res) => {
   try {
-    if (!['CRM core Administrator', 'System Architect'].includes(req.user.role)) {
+    if (!['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     const setting = await SystemSetting.findOne({ key: 'currencies' });

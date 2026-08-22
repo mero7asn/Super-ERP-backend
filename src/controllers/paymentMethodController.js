@@ -2,13 +2,13 @@ const PaymentMethod = require('../models/PaymentMethod');
 
 const PAYROLL_ROLES = [
   'Payroll Specialist', 'HR Manager', 'HR Director / Executive HR User',
-  'HRM System Administrator', 'CRM core Administrator',
+  'HRM System Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User',
 ];
 const isPayrollMgr = (role) => PAYROLL_ROLES.includes(role);
 
 const validateCard = (cardNumber, expiryMonth, expiryYear) => {
   const cleaned = cardNumber.replace(/\s/g, '');
-  if (!/^\d{13,19}$/.test(cleaned)) return 'Card number must be 13–19 digits.';
+  if (!/^\d{13,19}$/.test(cleaned)) return 'Card number must be 13ï¿½19 digits.';
 
   const month = parseInt(expiryMonth, 10);
   const year  = parseInt(expiryYear, 10);
@@ -53,7 +53,7 @@ exports.submitPaymentMethod = async (req, res) => {
   }
 };
 
-// -- ESS: Update (edit) a payment method — resets to Pending ------
+// -- ESS: Update (edit) a payment method ï¿½ resets to Pending ------
 exports.updatePaymentMethod = async (req, res) => {
   try {
     const pm = await PaymentMethod.findOne({ _id: req.params.id, employeeId: req.user._id });
