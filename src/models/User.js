@@ -34,6 +34,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: [
       'CRM core Administrator',
+      'Core 360 Administrator',
       'Sales Agent',
       'Sales Manager',
       'Customer Support Agent',

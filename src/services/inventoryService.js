@@ -6,7 +6,10 @@ const Serial = require('../models/Serial');
 const ProductVariant = require('../models/ProductVariant');
 
 function checkRole(user) {
-  const allowedRoles = ['CRM core Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'];
+  const allowedRoles = [
+    'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User',
+    'Inventory Manager', 'Warehouse Manager'
+  ];
   if (!user || !allowedRoles.includes(user.role)) {
     throw new Error('Not authorized for inventory operations');
   }

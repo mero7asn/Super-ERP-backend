@@ -103,7 +103,7 @@ exports.updateProduct = async (req, res) => {
 // @access  Private (Admin / System Architect)
 exports.deleteProduct = async (req, res) => {
   try {
-    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only administrators can delete products.' });
 
     const product = await Product.findById(req.params.id);
