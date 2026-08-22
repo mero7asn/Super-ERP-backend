@@ -24,13 +24,13 @@ const assignRoundRobin = async () => {
 
 // @desc    Generate a form link for a campaign
 // @route   POST /api/public/campaigns/:id/generate-form
-// @access  Private (Admin only — called from CampaignsPage)
+// @access  Private (Admin only ï¿½ called from CampaignsPage)
 const { protect } = require('../middleware/auth');
 const { authorizeRoles } = require('../middleware/rbac');
 
 router.post('/campaigns/:id/generate-form',
   protect,
-  authorizeRoles('CRM core Administrator', 'System Architect', 'Marketing Manager'),
+  authorizeRoles('CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Marketing Manager', 'Executive User'),
   async (req, res) => {
     try {
       const campaign = await Campaign.findById(req.params.id);
