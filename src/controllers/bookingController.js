@@ -53,7 +53,7 @@ exports.updateBooking = async (req, res) => {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && booking.agent.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this booking' });
     }

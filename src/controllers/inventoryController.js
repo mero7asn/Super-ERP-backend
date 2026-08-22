@@ -129,7 +129,7 @@ exports.updateInventoryItem = async (req, res) => {
 exports.deleteInventoryItem = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only administrators can delete inventory items.' });
 
     const item = await InventoryItem.findById(req.params.id);
@@ -613,6 +613,84 @@ exports.getInventoryKPIs = async (req, res) => {
     // -- Open pick tasks --
     const openPickTasks = await PickTask.countDocuments({ status: { $in: ['Draft', 'Assigned', 'In Progress'] } });
 
+    // -- Out of stock --
+    const outOfStockCount = await StockLevel.aggregate([
+      { $group: { _id: '$item', totalAvailable: { $sum: '$available' } } },
+      { $match: { totalAvailable: { $lte: 0 } } },
+      { $count: 'count' }
+    ]);
+
+    // -- Pending Receiving Orders (not closed) --
+    const pendingReceivingCount = await ReceivingOrder.countDocuments({ status: { $in: ['Draft', 'Partially Received', 'In Progress'] } });
+
+    // -- Pending Stock Transfers --
+    const pendingTransfersCount = await StockTransfer.countDocuments({ status: { $in: ['Draft', 'Confirmed', 'In Transit'] } });
+
+    // -- Damaged / Quarantine (blocked stock) --
+    const damagedAgg = await StockLevel.aggregate([
+      { $group: { _id: null, totalDamaged: { $sum: '$blocked' } } }
+    ]);
+    const damagedCount = damagedAgg[0]?.totalDamaged || 0;
+
+    // -- Slow-moving items (no GOODS_ISSUE in last 90 days) --
+    const activeItemIds = (await InventoryItem.find({ status: 'Active' }, '_id')).map(i => i._id);
+    const movedItemIds = (await StockTransaction.distinct('item', {
+      type: 'GOODS_ISSUE',
+      createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+    }));
+    const movedSet = new Set(movedItemIds.map(id => id.toString()));
+    const slowMovingCount = activeItemIds.filter(id => !movedSet.has(id.toString())).length;
+
+    // -- Dead stock value (no movement > 180 days) --
+    const movedIn180 = new Set((await StockTransaction.distinct('item', {
+      type: 'GOODS_ISSUE',
+      createdAt: { $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) }
+    })).map(id => id.toString()));
+    const deadStockItemIds = activeItemIds.filter(id => !movedIn180.has(id.toString()));
+    let deadStockValue = 0;
+    if (deadStockItemIds.length > 0) {
+      const deadAgg = await StockLevel.aggregate([
+        { $match: { item: { $in: deadStockItemIds } } },
+        { $lookup: { from: 'inventoryitems', localField: 'item', foreignField: '_id', as: 'itemData' } },
+        { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+        { $group: { _id: null, total: { $sum: { $multiply: ['$onHand', '$itemData.unitCost'] } } } }
+      ]);
+      deadStockValue = Math.round(deadAgg[0]?.total || 0);
+    }
+
+    // -- Stock Variance Value from posted cycle counts (last 30 days) --
+    const varianceAgg = await CycleCount.aggregate([
+      { $match: { status: 'Posted', createdAt: { $gte: since30 } } },
+      { $unwind: '$lines' },
+      { $lookup: { from: 'inventoryitems', localField: 'lines.item', foreignField: '_id', as: 'itemData' } },
+      { $unwind: { path: '$itemData', preserveNullAndEmpty: false } },
+      { $group: { _id: null, total: { $sum: { $abs: { $multiply: ['$lines.variance', '$itemData.unitCost'] } } } } }
+    ]);
+    const stockVarianceValue = Math.round(varianceAgg[0]?.total || 0);
+
+    // -- Movement waterfall (last 90 days) --
+    const receivedAgg = await StockTransaction.aggregate([
+      { $match: { type: 'GOODS_RECEIPT', status: 'Posted', createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } } },
+      { $group: { _id: null, total: { $sum: '$quantity' } } }
+    ]);
+    const issuedAgg = await StockTransaction.aggregate([
+      { $match: { type: 'GOODS_ISSUE', status: 'Posted', createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } } },
+      { $group: { _id: null, total: { $sum: '$quantity' } } }
+    ]);
+    const transferInAgg = await StockTransaction.aggregate([
+      { $match: { type: 'TRANSFER_IN', status: 'Posted', createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } } },
+      { $group: { _id: null, total: { $sum: '$quantity' } } }
+    ]);
+    const adjustedAgg = await StockTransaction.aggregate([
+      { $match: { type: 'ADJUSTMENT', status: 'Posted', createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } } },
+      { $group: { _id: null, total: { $sum: '$quantity' } } }
+    ]);
+    const totalReceived = receivedAgg[0]?.total || 0;
+    const totalIssued = issuedAgg[0]?.total || 0;
+    const transfersIn = transferInAgg[0]?.total || 0;
+    const totalAdjusted = adjustedAgg[0]?.total || 0;
+    const openingStock = Math.max(0, (stock.totalOnHand || 0) - totalReceived - transfersIn + totalIssued - totalAdjusted);
+
     res.json({
       success: true,
       data: {
@@ -633,7 +711,21 @@ exports.getInventoryKPIs = async (req, res) => {
         fillRate,
         reorderAlertsCount: reorderAlertsCount[0]?.count || 0,
         expiryAlertCount,
-        openPickTasks
+        openPickTasks,
+        // Extended KPIs
+        outOfStockCount: outOfStockCount[0]?.count || 0,
+        pendingReceivingCount,
+        pendingTransfersCount,
+        damagedCount,
+        slowMovingCount,
+        deadStockValue,
+        stockVarianceValue,
+        // Waterfall
+        openingStock,
+        totalReceived,
+        transfersIn,
+        totalIssued,
+        totalAdjusted
       }
     });
   } catch (error) {
@@ -716,7 +808,7 @@ exports.getSerials = async (req, res) => {
 exports.approveAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can approve adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);
@@ -737,7 +829,7 @@ exports.approveAdjustment = async (req, res) => {
 exports.rejectAdjustment = async (req, res) => {
   try {
     checkRole(req.user);
-    const isAdmin = ['Super CRM Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect', 'Inventory Manager', 'Warehouse Manager'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only managers can reject adjustments.' });
 
     const adjustment = await InventoryAdjustment.findById(req.params.id);

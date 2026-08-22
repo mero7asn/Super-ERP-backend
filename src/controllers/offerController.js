@@ -120,7 +120,7 @@ exports.getOffersByLead = async (req, res) => {
     const lead = await Lead.findById(req.params.leadId);
     if (!lead) return res.status(404).json({ message: 'Lead not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
@@ -217,7 +217,7 @@ exports.createOffer = async (req, res) => {
       }
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isManager = req.user.role === 'Sales Manager';
     const isAgent = req.user.role === 'Sales Agent';
 
@@ -300,7 +300,7 @@ exports.updateOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -345,7 +345,7 @@ exports.deleteOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -521,7 +521,7 @@ exports.sendOffer = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead').populate('createdBy', 'firstName lastName');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy._id.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -828,7 +828,7 @@ exports.updateTemplate = async (req, res) => {
     const template = await OfferTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && template.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this template' });
     }
@@ -860,7 +860,7 @@ exports.deleteTemplate = async (req, res) => {
     const template = await OfferTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin && template.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this template' });
     }
@@ -880,7 +880,7 @@ exports.uploadOfferImage = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -911,7 +911,7 @@ exports.deleteOfferImage = async (req, res) => {
     const offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -935,7 +935,7 @@ exports.initiateAvayaCall = async (req, res) => {
     const offer = await Offer.findById(req.params.id).populate('lead');
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isOwner = offer.createdBy.toString() === req.user._id.toString();
 
     if (!isAdmin && !isOwner) {
@@ -993,7 +993,7 @@ exports.getOfferByLocator = async (req, res) => {
     }
 
     // Allow access to ticket creator, assigned agent, or admins
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isCreator = offer.createdBy._id.toString() === req.user._id.toString();
 
     if (!isAdmin && !isCreator) {
@@ -1019,7 +1019,7 @@ exports.getOfferById = async (req, res) => {
       return res.status(404).json({ message: 'Offer not found' });
     }
 
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     const isCreator = offer.createdBy && offer.createdBy._id.toString() === req.user._id.toString();
     const isAssigned = offer.lead && offer.lead.assignedTo && offer.lead.assignedTo.toString() === req.user._id.toString();
     const isManager = req.user.role === 'Sales Manager';

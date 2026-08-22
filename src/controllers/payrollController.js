@@ -29,7 +29,7 @@ const PAYROLL_ROLES = [
   'HR Manager',
   'HR Director / Executive HR User',
   'HRM System Administrator',
-  'Super CRM Administrator',
+  'CRM core Administrator',
 ];
 
 // Can generate runs, approve, and request release — but NOT directly release
@@ -40,7 +40,7 @@ const SENIOR_ROLES = [
   'HR Manager',
   'HR Director / Executive HR User',
   'HRM System Administrator',
-  'Super CRM Administrator',
+  'CRM core Administrator',
 ];
 const isSeniorManager = (user) => SENIOR_ROLES.includes(user?.role);
 

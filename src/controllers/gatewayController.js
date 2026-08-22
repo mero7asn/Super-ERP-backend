@@ -16,7 +16,7 @@ const { isLive, LIVE_MODE } = require('../services/disbursementService');
 const { VENDOR_CAPABILITIES, validateBankAccount } = require('../services/vendorConfig');
 
 const ADMIN_ROLES = [
-  'Super CRM Administrator',
+  'CRM core Administrator',
   'HRM System Administrator',
   'HR Director / Executive HR User',
   'HR Manager',

@@ -2,7 +2,7 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 
 const PRODUCT_ROLES = [
-  'Super CRM Administrator', 'System Architect', 'Sales Agent',
+  'CRM core Administrator', 'System Architect', 'Sales Agent',
   'Sales Manager', 'Executive User',
 ];
 
@@ -103,7 +103,7 @@ exports.updateProduct = async (req, res) => {
 // @access  Private (Admin / System Architect)
 exports.deleteProduct = async (req, res) => {
   try {
-    const isAdmin = ['Super CRM Administrator', 'System Architect'].includes(req.user.role);
+    const isAdmin = ['CRM core Administrator', 'System Architect'].includes(req.user.role);
     if (!isAdmin) return res.status(403).json({ message: 'Only administrators can delete products.' });
 
     const product = await Product.findById(req.params.id);

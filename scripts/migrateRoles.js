@@ -7,7 +7,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 const ROLE_MAP = {
-  'Super CRM Administrator': 'Core 360 Administrator',
+  'CRM core Administrator': 'Core 360 Administrator',
   'Super ERP Administrator': 'Core 360 Administrator',
 };
 

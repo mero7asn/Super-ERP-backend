@@ -1,4 +1,4 @@
-Ôªø# SUPER CRM & HRM DESIGN SYSTEM SPECIFICATION
+# CRM core & HRM DESIGN SYSTEM SPECIFICATION
 ## Figma UI/UX Technical Blueprint & Token Dictionary
 **Document Reference:** DS-SPEC-V1.0.0  
 **Status:** Approved for Implementation  
@@ -182,30 +182,30 @@ Colors are mapped to semantic variables using HSL (Hue, Saturation, Lightness) f
 
 #### 2.1.2 Primary Scale reference Palettes (Exhaustive Color Scales)
 ##### Blue (Primary Accent) Scale
-*   **Blue 50:** `#EFF6FF` | `hsl(221, 100%, 97%)` ‚Äî Page hover highlights, banner background base elements.
-*   **Blue 100:** `#DBEAFE` | `hsl(214, 95%, 93%)` ‚Äî Badge labels success highlights backdrop.
-*   **Blue 200:** `#BFDBFE` | `hsl(213, 97%, 87%)` ‚Äî Focused outline background shadow overlay base.
-*   **Blue 300:** `#93C5FD` | `hsl(212, 96%, 78%)` ‚Äî Light/Dark theme border line borders.
-*   **Blue 400:** `#60A5FA` | `hsl(213, 96%, 68%)` ‚Äî Inline icon item hover state.
-*   **Blue 500:** `#3B82F6` | `hsl(217, 91%, 60%)` ‚Äî Active interaction accents, default active buttons.
-*   **Blue 600:** `#2563EB` | `hsl(221, 83%, 53%)` ‚Äî Main Brand Primary Color.
-*   **Blue 700:** `#1D4ED8` | `hsl(225, 78%, 47%)` ‚Äî Hover actions button background shades.
-*   **Blue 800:** `#1E40AF` | `hsl(226, 70%, 40%)` ‚Äî Deep pressed button highlights.
-*   **Blue 900:** `#1E3A8A` | `hsl(224, 64%, 33%)` ‚Äî Text overlay headers panel.
-*   **Blue 950:** `#172554` | `hsl(226, 56%, 21%)` ‚Äî Primary dark mode sidebar header frame backdrop.
+*   **Blue 50:** `#EFF6FF` | `hsl(221, 100%, 97%)` ó Page hover highlights, banner background base elements.
+*   **Blue 100:** `#DBEAFE` | `hsl(214, 95%, 93%)` ó Badge labels success highlights backdrop.
+*   **Blue 200:** `#BFDBFE` | `hsl(213, 97%, 87%)` ó Focused outline background shadow overlay base.
+*   **Blue 300:** `#93C5FD` | `hsl(212, 96%, 78%)` ó Light/Dark theme border line borders.
+*   **Blue 400:** `#60A5FA` | `hsl(213, 96%, 68%)` ó Inline icon item hover state.
+*   **Blue 500:** `#3B82F6` | `hsl(217, 91%, 60%)` ó Active interaction accents, default active buttons.
+*   **Blue 600:** `#2563EB` | `hsl(221, 83%, 53%)` ó Main Brand Primary Color.
+*   **Blue 700:** `#1D4ED8` | `hsl(225, 78%, 47%)` ó Hover actions button background shades.
+*   **Blue 800:** `#1E40AF` | `hsl(226, 70%, 40%)` ó Deep pressed button highlights.
+*   **Blue 900:** `#1E3A8A` | `hsl(224, 64%, 33%)` ó Text overlay headers panel.
+*   **Blue 950:** `#172554` | `hsl(226, 56%, 21%)` ó Primary dark mode sidebar header frame backdrop.
 
 ##### Gray (Neutral Body) Scale
-*   **Gray 50:** `#F9FAFB` | `hsl(0, 0%, 98%)` ‚Äî Canvas body page backgrounds, inner containers.
-*   **Gray 100:** `#F3F4F6` | `hsl(220, 14%, 96%)` ‚Äî Content wells, sidebar navigation lists.
-*   **Gray 200:** `#E5E7EB` | `hsl(220, 13%, 91%)` ‚Äî Outer divider lines, grid borders.
-*   **Gray 300:** `#D1D5DB` | `hsl(218, 12%, 83%)` ‚Äî Form field placeholder outlines, card dividers.
-*   **Gray 400:** `#9CA3AF` | `hsl(218, 11%, 65%)` ‚Äî Static icons backdrop, helper labels descriptions.
-*   **Gray 500:** `#6B7280` | `hsl(220, 9%, 46%)` ‚Äî Sidebar sublabels details, secondary descriptions.
-*   **Gray 600:** `#4B5563` | `hsl(215, 14%, 34%)` ‚Äî Medium weight body text, disabled labels.
-*   **Gray 700:** `#374151` | `hsl(217, 19%, 27%)` ‚Äî Table row details content items.
-*   **Gray 800:** `#1F2937` | `hsl(215, 28%, 17%)` ‚Äî Core high contrast labels.
-*   **Gray 900:** `#111827` | `hsl(221, 39%, 11%)` ‚Äî Primary headings bold text, title headers.
-*   **Gray 950:** `#030712` | `hsl(224, 71%, 4%)` ‚Äî Jet-black dark-mode surface backdrop.
+*   **Gray 50:** `#F9FAFB` | `hsl(0, 0%, 98%)` ó Canvas body page backgrounds, inner containers.
+*   **Gray 100:** `#F3F4F6` | `hsl(220, 14%, 96%)` ó Content wells, sidebar navigation lists.
+*   **Gray 200:** `#E5E7EB` | `hsl(220, 13%, 91%)` ó Outer divider lines, grid borders.
+*   **Gray 300:** `#D1D5DB` | `hsl(218, 12%, 83%)` ó Form field placeholder outlines, card dividers.
+*   **Gray 400:** `#9CA3AF` | `hsl(218, 11%, 65%)` ó Static icons backdrop, helper labels descriptions.
+*   **Gray 500:** `#6B7280` | `hsl(220, 9%, 46%)` ó Sidebar sublabels details, secondary descriptions.
+*   **Gray 600:** `#4B5563` | `hsl(215, 14%, 34%)` ó Medium weight body text, disabled labels.
+*   **Gray 700:** `#374151` | `hsl(217, 19%, 27%)` ó Table row details content items.
+*   **Gray 800:** `#1F2937` | `hsl(215, 28%, 17%)` ó Core high contrast labels.
+*   **Gray 900:** `#111827` | `hsl(221, 39%, 11%)` ó Primary headings bold text, title headers.
+*   **Gray 950:** `#030712` | `hsl(224, 71%, 4%)` ó Jet-black dark-mode surface backdrop.
 
 ---
 
@@ -775,9 +775,9 @@ Accordions display collapsible content sections.
     *   Figma Setup: `Auto Layout: Horizontal. Align: Middle-Space Between. Height: 48px. Padding: 12px 16px. Cursor: Pointer.`
     *   Content: Header label (`Body/Medium Semibold`, Color: `text-primary`), trailing chevron icon (16px, Color: `text-secondary`).
 *   **Header States:**
-    *   *Default:* Fill: Transparent. Chevron rotated 0¬∞ (pointing right/down).
+    *   *Default:* Fill: Transparent. Chevron rotated 0∞ (pointing right/down).
     *   *Hover:* Fill: `bg-secondary`.
-    *   *Expanded:* Chevron rotated 180¬∞ (pointing up).
+    *   *Expanded:* Chevron rotated 180∞ (pointing up).
 *   **Accordion Content Wells:**
     *   Figma Setup: `Auto Layout: Vertical. Padding: 16px 20px. Gap: 12px. Fill: bg-secondary (nested indentation).`
 
@@ -791,7 +791,7 @@ Accordions display collapsible content sections.
 
 #### 5.16.2 Circular Loading Spinner
 *   **Structure:** Circular stroke path measuring `24px * 24px` (or `48px * 48px` for page loaders). Stroke thickness: `2.5px`.
-*   **Visual Details:** Track is a light circle outline (Color: `border-default`, opacity 30%). Rotating indicator is a 90¬∞ arc highlight (Color: `brand-primary`).
+*   **Visual Details:** Track is a light circle outline (Color: `border-default`, opacity 30%). Rotating indicator is a 90∞ arc highlight (Color: `brand-primary`).
 
 #### 5.16.3 Skeleton Loading Frames
 *   **Structure:** Semi-transparent placeholder boxes used to indicate loading content.
@@ -889,7 +889,7 @@ This matrix defines the exact animation parameters for interactive components.
 | **Input Focus Transition** | Click / Tab Focus | Border Color, Shadow | `150ms` | `motion-ease-standard` | Stroke width expands to `2px` with a subtle elevation glow |
 | **Toggle Switch Shift** | Tap / Click | Position (X), Background Color| `250ms` | `motion-ease-spring` | Switch slider slides horizontally with a slight elastic bounce |
 | **Tabs Indicator Slip** | Click | Position (X), Width | `250ms` | `motion-ease-spring` | Active bar shifts underneath labels |
-| **Accordion Menu Rollout**| Click Header | Height, Icon rotation | `250ms` | `motion-ease-standard` | Content area slides down while the arrow icon rotates 180¬∞ |
+| **Accordion Menu Rollout**| Click Header | Height, Icon rotation | `250ms` | `motion-ease-standard` | Content area slides down while the arrow icon rotates 180∞ |
 | **Modal Overlay Entry** | System Event | Opacity | `400ms` | `motion-ease-out` | Background overlay fades in |
 | **Modal Card Entry** | System Event | Scale, Position (Y) | `400ms` | `motion-ease-spring` | Modal card drops down from `Y:-40px` and scales from `95%` to `100%` |
 | **Drawer Slide-out Entry**| System Event | Position (X) | `400ms` | `motion-ease-out` | Drawer panel slides in from the right edge |
@@ -905,12 +905,12 @@ To ensure designs remain maintainable, the Figma file structure must follow this
 
 ### 7.1 Page Structure & Naming Conventions
 Organize the Figma file pages sequentially:
-*   `‚öôÔ∏è Global Tokens` ‚Äî Contains the color, typography, spacing, and shadow variables.
-*   `‚ùñ Basic Atoms` ‚Äî Contains basic UI components (Icons, Buttons, Checkboxes, Inputs).
-*   `‚ùñ Complex Molecules` ‚Äî Contains composite components (KPI Cards, Table Rows, Headers, Modals).
-*   `üìÅ CRM Pages / Dashboards` ‚Äî High-fidelity CRM mockups.
-*   `üìÅ HRM Pages / Directory` ‚Äî High-fidelity HRM mockups.
-*   `üß™ Prototype / Interactions` ‚Äî Interactive prototypes and animations.
+*   `?? Global Tokens` ó Contains the color, typography, spacing, and shadow variables.
+*   `? Basic Atoms` ó Contains basic UI components (Icons, Buttons, Checkboxes, Inputs).
+*   `? Complex Molecules` ó Contains composite components (KPI Cards, Table Rows, Headers, Modals).
+*   `?? CRM Pages / Dashboards` ó High-fidelity CRM mockups.
+*   `?? HRM Pages / Directory` ó High-fidelity HRM mockups.
+*   `?? Prototype / Interactions` ó Interactive prototypes and animations.
 
 ### 7.2 Layer Naming Conventions
 *   Avoid generic layer names like `Frame 2938` or `Group 12`. All frames must use descriptive names.

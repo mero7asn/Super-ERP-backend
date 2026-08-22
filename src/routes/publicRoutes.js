@@ -30,7 +30,7 @@ const { authorizeRoles } = require('../middleware/rbac');
 
 router.post('/campaigns/:id/generate-form',
   protect,
-  authorizeRoles('Super CRM Administrator', 'System Architect', 'Marketing Manager'),
+  authorizeRoles('CRM core Administrator', 'System Architect', 'Marketing Manager'),
   async (req, res) => {
     try {
       const campaign = await Campaign.findById(req.params.id);

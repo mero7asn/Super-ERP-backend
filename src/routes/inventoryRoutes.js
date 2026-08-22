@@ -18,7 +18,7 @@ const {
 } = require('../controllers/inventoryController');
 
 const INVENTORY_ROLES = [
-  'Super CRM Administrator', 'System Architect', 'Inventory Manager',
+  'CRM core Administrator', 'System Architect', 'Inventory Manager',
   'Warehouse Manager', 'Receiving Clerk', 'Shipping Clerk',
   'Warehouse Operator', 'Inventory Clerk', 'Quality Inspector'
 ];

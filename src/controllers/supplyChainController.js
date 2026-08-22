@@ -320,6 +320,22 @@ exports.getControlTowerKpis = async (req, res) => {
     const pos = await PurchaseOrder.find({});
     const totalSpendEgp = pos.reduce((sum, p) => sum + (p.grandTotalEgp || p.grandTotal || 0), 0);
 
+    // Compute On-Time % from real PO delivery data
+    const deliveredPos = pos.filter(p => p.status === 'Fully Received' && p.promisedDeliveryDate);
+    let supplierOnTimeAvgPct = null;
+    if (deliveredPos.length > 0) {
+      const onTimeCount = deliveredPos.filter(p => new Date(p.updatedAt) <= new Date(p.promisedDeliveryDate)).length;
+      supplierOnTimeAvgPct = Math.round((onTimeCount / deliveredPos.length) * 100);
+    }
+
+    // Compute landed cost from real import shipments
+    const ImportShipmentModel = require('../models/ImportShipment');
+    const shipments = await ImportShipmentModel.find({});
+    const landedCostTotalEgp = shipments.reduce((sum, s) => {
+      const lc = s.landedCost || {};
+      return sum + (lc.totalLandedCostEgp || lc.customsDuty || 0);
+    }, 0);
+
     const supplyGapRecs = await calculateSupplyGapAndRecommendations();
 
     res.json({
@@ -330,9 +346,9 @@ exports.getControlTowerKpis = async (req, res) => {
         importShipmentsCount,
         pendingPrsCount,
         totalSuppliersCount: totalSuppliers,
-        supplierOnTimeAvgPct: 94,
+        supplierOnTimeAvgPct,
         supplyGapItemsCount: supplyGapRecs.length,
-        landedCostTotalEgp: 645000
+        landedCostTotalEgp: Math.round(landedCostTotalEgp)
       }
     });
   } catch (err) {

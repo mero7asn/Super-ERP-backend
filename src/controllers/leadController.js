@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
 
-const ADMIN_ROLES = ['Super CRM Administrator', 'System Architect'];
+const ADMIN_ROLES = ['CRM core Administrator', 'System Architect'];
 const MANAGER_ROLES = ['Sales Manager'];
 
 // Round-robin: pick the agent with the fewest leads among a pool

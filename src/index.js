@@ -190,7 +190,7 @@ const runStartupTasks = () => {
         }).populate('item', 'sku name').populate('warehouse', 'code name');
 
         if (expiringLots.length > 0) {
-          const managers = await User.find({ role: { $in: ['Inventory Manager', 'Warehouse Manager', 'Super CRM Administrator'] }, isActive: true });
+          const managers = await User.find({ role: { $in: ['Inventory Manager', 'Warehouse Manager', 'CRM core Administrator'] }, isActive: true });
           for (const mgr of managers) {
             const lotList = expiringLots.slice(0, 15).map(l =>
               `- Lot ${l.lotNumber} | ${l.item?.sku} ${l.item?.name} | Qty: ${l.quantity} | Expires: ${new Date(l.expiryDate).toLocaleDateString()} | ${l.warehouse?.code}`
@@ -239,7 +239,7 @@ const runStartupTasks = () => {
         ]);
 
         if (breachedItems.length > 0) {
-          const managers = await User.find({ role: { $in: ['Inventory Manager', 'Super CRM Administrator'] }, isActive: true });
+          const managers = await User.find({ role: { $in: ['Inventory Manager', 'CRM core Administrator'] }, isActive: true });
           for (const mgr of managers) {
             const itemList = breachedItems.slice(0, 20).map(i =>
               `- ${i.sku} ${i.name} | Available: ${i.totalAvailable} | Reorder Point: ${i.reorderPoint}`

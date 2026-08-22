@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { NavLink, useNavigate, useMatch } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -73,7 +73,7 @@ const HRM_NAV_ITEMS = [
   { label: 'BD & People Culture',       icon: 'partnerships', path: '/hrm/partnerships', roles: ['Core 360 Administrator','HRM System Administrator','HR Manager','HR Business Partner','Employee (General User)'] },
 ];
 
-// Employee Self-Service — visible to every authenticated user (own data only)
+// Employee Self-Service � visible to every authenticated user (own data only)
 const ESS_NAV_ITEMS = [
   { label: 'My Schedule', icon: 'calendar', path: '/ess/schedule' },
   { label: 'My Payroll',  icon: 'payroll',  path: '/ess/payroll' },
@@ -107,7 +107,7 @@ const Sidebar = () => {
       style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, userSelect: 'none' }}
     >
       <span>{label}</span>
-      <span style={{ fontSize: 10 }}>{open ? '▼' : '▶'}</span>
+      <span style={{ fontSize: 10 }}>{open ? '?' : '?'}</span>
     </div>
   );
 
@@ -156,10 +156,10 @@ const Sidebar = () => {
           </div>
         )}
 
-        {/* Super HRM */}
+        {/* HRM core */}
         {showHRM && (
           <div style={{ marginBottom: 16 }}>
-            <SectionHeader label="Super HRM" open={hrmOpen} onToggle={() => setHrmOpen(o => !o)} />
+            <SectionHeader label="HRM core" open={hrmOpen} onToggle={() => setHrmOpen(o => !o)} />
             {hrmOpen && (
               <div style={{ paddingLeft: 8 }}>
                 {HRM_NAV_ITEMS.filter(canSee).map(item => (
@@ -177,7 +177,7 @@ const Sidebar = () => {
           </div>
         )}
 
-        {/* Employee Self-Service — visible to every authenticated user */}
+        {/* Employee Self-Service � visible to every authenticated user */}
         <div style={{ marginBottom: 16 }}>
           <SectionHeader label="My Workspace" open={essOpen} onToggle={() => setEssOpen(o => !o)} />
           {essOpen && (

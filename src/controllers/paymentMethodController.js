@@ -2,7 +2,7 @@ const PaymentMethod = require('../models/PaymentMethod');
 
 const PAYROLL_ROLES = [
   'Payroll Specialist', 'HR Manager', 'HR Director / Executive HR User',
-  'HRM System Administrator', 'Super CRM Administrator',
+  'HRM System Administrator', 'CRM core Administrator',
 ];
 const isPayrollMgr = (role) => PAYROLL_ROLES.includes(role);
 

@@ -8,7 +8,7 @@ const HrmDashboardPage = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Super HRM Dashboard</h1>
+          <h1 className="page-title">HRM core Dashboard</h1>
           <p className="page-subtitle">Welcome back, {user?.firstName}! Manage human resources, talent acquisition, payroll, and training.</p>
         </div>
       </div>

@@ -2,7 +2,7 @@ const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 
 const TECH_ROLES = ['CRM Developer', 'CRM Consultant', 'System Architect'];
-const ADMIN_ROLES = ['Super CRM Administrator'];
+const ADMIN_ROLES = ['CRM core Administrator'];
 const FULL_ACCESS_ROLES = [...TECH_ROLES, ...ADMIN_ROLES, 'Executive User'];
 const CAN_MANAGE_ROLES = [...TECH_ROLES, ...ADMIN_ROLES];
 const AFFECTED_PAGES = [
