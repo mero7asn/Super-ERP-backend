@@ -33,6 +33,9 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: [
+      'Super CRM Administrator',
+      'Super Admin',
+      'Administrator',
       'CRM core Administrator',
       'Core 360 Administrator',
       'Sales Agent',

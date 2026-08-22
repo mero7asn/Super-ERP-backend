@@ -125,7 +125,7 @@ exports.uploadSignedContract = async (req, res) => {
 exports.upsertSalaryComponent = async (req, res) => {
   try {
     const { employeeId, componentId, label, type, valueType, value, kpiLinked, note } = req.body;
-    const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'CRM core Administrator', 'Core 360 Administrator', 'HR Director / Executive HR User'].includes(req.user.role);
+    const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'HR Director / Executive HR User'].includes(req.user.role);
     if (!isHR) return res.status(403).json({ message: 'Access denied.' });
     const contract = await Contract.findOne({ employeeId });
     if (!contract) return res.status(404).json({ message: 'Contract not found.' });
@@ -146,7 +146,7 @@ exports.upsertSalaryComponent = async (req, res) => {
 
 exports.deleteSalaryComponent = async (req, res) => {
   try {
-    const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'CRM core Administrator', 'Core 360 Administrator', 'HR Director / Executive HR User'].includes(req.user.role);
+    const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'HR Director / Executive HR User'].includes(req.user.role);
     if (!isHR) return res.status(403).json({ message: 'Access denied.' });
     const { employeeId } = req.query;
     const contract = await Contract.findOne({ employeeId });
@@ -210,7 +210,7 @@ exports.updateNetSalaryOnly = async (req, res) => {
     const { id } = req.params;
     
     const isAuth = req.user.isPersonalTeamLeader || 
-                   ['HR Manager', 'HRM System Administrator', 'CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
+                   ['HR Manager', 'HRM System Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
     
     if (!isAuth) {
       return res.status(403).json({ message: 'Not authorized. Only the Personal Team Leader or HR Managers can edit Net Salary.' });
@@ -522,7 +522,7 @@ exports.createLeaveRequest = async (req, res) => {
 exports.getLeaveRequests = async (req, res) => {
   try {
     let query = {};
-    const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
+    const isHR = ['HRM System Administrator', 'HR Manager', 'HR Specialist (Generalist)', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
     if (!isHR) {
       query.employeeId = req.user._id;
     }
@@ -589,7 +589,7 @@ exports.updateDetailedSchedule = async (req, res) => {
   try {
     const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides } = req.body;
 
-    const isHR = ['HRM System Administrator', 'HR Manager', 'CRM core Administrator', 'Core 360 Administrator', 'Core 360 Administrator'].includes(req.user.role);
+    const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'Core 360 Administrator'].includes(req.user.role);
     if (!isHR) {
       return res.status(403).json({ message: 'Not authorized to change schedules.' });
     }
@@ -664,7 +664,7 @@ exports.createTraining = async (req, res) => {
 exports.getTrainings = async (req, res) => {
   try {
     let query = {};
-    const hrmPrivileged = ['HRM System Administrator', 'HR Manager', 'CRM core Administrator', 'Core 360 Administrator', 'Core 360 Administrator', 'Training and Development Specialist'];
+    const hrmPrivileged = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'Core 360 Administrator', 'Training and Development Specialist'];
     if (!hrmPrivileged.includes(req.user.role)) {
       query = {
         $or: [
@@ -693,7 +693,7 @@ exports.updateTrainingReport = async (req, res) => {
     }
 
     const isTrainer = training.assignedTrainerId.toString() === req.user._id.toString();
-    const isHR = ['HRM System Administrator', 'HR Manager', 'Training and Development Specialist', 'CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
+    const isHR = ['HRM System Administrator', 'HR Manager', 'Training and Development Specialist', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator'].includes(req.user.role);
 
     if (!isTrainer && !isHR) {
       return res.status(403).json({ message: 'Not authorized to update this training report' });
@@ -1177,7 +1177,7 @@ exports.getAuxReport = async (req, res) => {
 exports.upsertAuxSchedule = async (req, res) => {
   try {
     const { userId, month, monthlyPlan, weeklyOverrides } = req.body;
-    const isHR = ['HRM System Administrator', 'HR Manager', 'CRM core Administrator', 'Core 360 Administrator',
+    const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator',
       'Attendance and Time Officer'].includes(req.user.role);
     if (!isHR) return res.status(403).json({ message: 'Not authorized.' });
 

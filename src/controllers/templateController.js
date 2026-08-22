@@ -67,7 +67,7 @@ exports.updateTemplate = async (req, res) => {
     const template = await EmailTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     const isOwner = template.createdBy.toString() === req.user._id.toString();
 
     if (!isOwner && !isAdmin) {
@@ -89,7 +89,7 @@ exports.deleteTemplate = async (req, res) => {
     const template = await EmailTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     const isOwner = template.createdBy.toString() === req.user._id.toString();
 
     if (!isOwner && !isAdmin) {
@@ -111,7 +111,7 @@ exports.setDefaultTemplate = async (req, res) => {
     const template = await EmailTemplate.findById(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const isAdmin = ['CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
+    const isAdmin = ['Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     if (!isAdmin) {
       return res.status(403).json({ message: 'Only admins can set default templates' });
     }

@@ -1,4 +1,7 @@
 const SUPER_ADMIN_ROLES = [
+  'Super CRM Administrator',
+  'Super Admin',
+  'Administrator',
   'CRM core Administrator',
   'Core 360 Administrator',
   'System Architect',
@@ -8,7 +11,12 @@ const SUPER_ADMIN_ROLES = [
 exports.SUPER_ADMIN_ROLES = SUPER_ADMIN_ROLES;
 
 exports.isAdminRole = (role) => {
-  return SUPER_ADMIN_ROLES.includes(role);
+  if (!role) return false;
+  if (SUPER_ADMIN_ROLES.includes(role)) return true;
+  if (typeof role === 'string' && (role.toLowerCase().includes('admin') || role.toLowerCase().includes('super'))) {
+    return true;
+  }
+  return false;
 };
 
 // Middleware to grant access to specific roles
@@ -19,7 +27,7 @@ exports.authorizeRoles = (...roles) => {
     }
 
     // Super admin roles always have universal access
-    if (SUPER_ADMIN_ROLES.includes(req.user.role)) {
+    if (exports.isAdminRole(req.user.role)) {
       return next();
     }
 
