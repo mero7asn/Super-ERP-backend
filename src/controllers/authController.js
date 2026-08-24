@@ -143,26 +143,26 @@ exports.getTeams = async (req, res) => {
   try {
     // Hierarchy definition
     const HIERARCHY = [
-      { department: 'Sales',            managerRole: 'Sales Manager',            memberRoles: ['Sales Agent'] },
-      { department: 'Customer Support', managerRole: 'Customer Support Manager', memberRoles: ['Customer Support Agent'] },
-      { department: 'Marketing',        managerRole: 'Marketing Manager',        memberRoles: ['Marketing Specialist'] },
-      { department: 'Technology',       managerRole: 'System Architect',         memberRoles: ['CRM Developer', 'CRM Consultant'] },
-      { department: 'Personal',         managerRole: 'HR Manager',               memberRoles: ['HR Specialist (Generalist)', 'Employee (General User)'] },
-      { department: 'Payroll',          managerRole: 'HR Manager',               memberRoles: ['Payroll Specialist'] },
-      { department: 'Training',         managerRole: 'Training and Development Specialist', memberRoles: [] },
-      { department: 'Talent Acquisition', managerRole: 'Recruitment Specialist (Talent Acquisition)', memberRoles: [] },
-      { department: 'BD & People Culture', managerRole: 'HR Business Partner',  memberRoles: [] },
+      { department: 'Sales',               managerRole: 'Sales Manager',                               memberRoles: ['Sales Agent'] },
+      { department: 'Customer Support',    managerRole: 'Customer Support Manager',                    memberRoles: ['Customer Support Agent'] },
+      { department: 'Marketing',           managerRole: 'Marketing Manager',                           memberRoles: ['Marketing Specialist'] },
+      { department: 'Technology',          managerRole: 'System Architect',                            memberRoles: ['CRM Developer', 'CRM Consultant'] },
+      { department: 'Personal',            managerRole: 'HR Manager',                                  memberRoles: ['HR Specialist (Generalist)', 'Employee (General User)'] },
+      { department: 'Payroll',             managerRole: 'HR Manager',                                  memberRoles: ['Payroll Specialist'] },
+      { department: 'Training',            managerRole: 'Training and Development Specialist',          memberRoles: [] },
+      { department: 'Talent Acquisition',  managerRole: 'Recruitment Specialist (Talent Acquisition)', memberRoles: [] },
+      { department: 'BD & People Culture', managerRole: 'HR Business Partner',                         memberRoles: [] },
     ];
 
-    // Roles that report directly to Executive User (no sub-teams)
-    const EXEC_DIRECT_ROLES = [
-      'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'Business Analyst', 'Sales Manager', 'Marketing Manager',
-      'Customer Support Manager', 'System Architect', 'HRM System Administrator', 'HR Manager'
+    // Roles that sit directly under an Executive (no sub-team below them)
+    const execDirectRoles = [
+      'Super CRM Administrator', 'Super Admin', 'Administrator',
+      'CRM core Administrator', 'Core 360 Administrator',
+      'Business Analyst', 'HRM System Administrator',
     ];
 
     const allManagerRoles = HIERARCHY.map(h => h.managerRole);
     const allMemberRoles  = HIERARCHY.flatMap(h => h.memberRoles);
-    const execDirectRoles = ['Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'Business Analyst', 'HRM System Administrator'];
 
     const [executives, managers, members, execDirects] = await Promise.all([
       User.find({ role: 'Executive User' }).select('firstName lastName email role isActive'),
@@ -174,7 +174,7 @@ exports.getTeams = async (req, res) => {
         .populate('supervisor', 'firstName lastName email role'),
     ]);
 
-    // Build department teams
+    // Build department teams — members grouped under their manager (via supervisor field)
     const teams = managers.map(manager => {
       const dept = HIERARCHY.find(h => h.managerRole === manager.role);
       return {
@@ -185,18 +185,22 @@ exports.getTeams = async (req, res) => {
       };
     });
 
-    // Build executive node
+    // Build executive nodes — each exec's direct reports
     const execNode = executives.map(exec => ({
       executive: exec,
       directReports: [
-        ...managers.filter(m => m.supervisor?._id?.toString() === exec._id.toString()),
+        ...managers.filter(m    => m.supervisor?._id?.toString() === exec._id.toString()),
         ...execDirects.filter(m => m.supervisor?._id?.toString() === exec._id.toString()),
       ],
     }));
 
-    const unassignedMembers  = members.filter(m => !m.supervisor);
-    const unassignedManagers = managers.filter(m => !m.supervisor);
+    const unassignedMembers  = members.filter(m    => !m.supervisor);
+    const unassignedManagers = managers.filter(m   => !m.supervisor);
     const unassignedDirects  = execDirects.filter(m => !m.supervisor);
+
+    // Flat supervisor list for the frontend reassignment picker
+    const allSupervisors = [...executives, ...managers, ...execDirects]
+      .map(u => ({ _id: u._id, firstName: u.firstName, lastName: u.lastName, role: u.role }));
 
     res.json({
       success: true,
@@ -205,6 +209,7 @@ exports.getTeams = async (req, res) => {
       unassignedMembers,
       unassignedManagers,
       unassignedDirects,
+      allSupervisors,
       hierarchy: HIERARCHY,
     });
   } catch (error) {
@@ -214,11 +219,12 @@ exports.getTeams = async (req, res) => {
 
 // @desc    Update user by ID
 // @route   PUT /api/auth/users/:id
-// @access  Private � own profile (basic fields) or Admin (all fields)
+// @access  Private — own profile (basic fields) or Admin (all fields)
 exports.updateUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+
 
     const isAdmin = ['Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
     const isOwnProfile = req.user._id.toString() === req.params.id;
