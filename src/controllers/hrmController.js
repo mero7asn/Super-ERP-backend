@@ -587,9 +587,9 @@ exports.getDetailedSchedule = async (req, res) => {
 
 exports.updateDetailedSchedule = async (req, res) => {
   try {
-    const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides } = req.body;
+    const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides, defaultLiveTarget, defaultBreakTarget, defaultTrainingTarget, defaultCoachingTarget } = req.body;
 
-    const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'Core 360 Administrator'].includes(req.user.role);
+    const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isHR) {
       return res.status(403).json({ message: 'Not authorized to change schedules.' });
     }
@@ -601,6 +601,10 @@ exports.updateDetailedSchedule = async (req, res) => {
 
     if (defaultShift !== undefined) schedule.defaultShift = defaultShift;
     if (defaultOffDays !== undefined) schedule.defaultOffDays = defaultOffDays;
+    if (defaultLiveTarget !== undefined) schedule.defaultLiveTarget = defaultLiveTarget;
+    if (defaultBreakTarget !== undefined) schedule.defaultBreakTarget = defaultBreakTarget;
+    if (defaultTrainingTarget !== undefined) schedule.defaultTrainingTarget = defaultTrainingTarget;
+    if (defaultCoachingTarget !== undefined) schedule.defaultCoachingTarget = defaultCoachingTarget;
     if (weeklyOverrides !== undefined) {
       schedule.weeklyOverrides = weeklyOverrides;
       schedule.markModified('weeklyOverrides');
@@ -613,12 +617,32 @@ exports.updateDetailedSchedule = async (req, res) => {
 
     await schedule.save();
 
-    // Propagate default shift to user profile as well for backward compatibility
-    if (defaultShift) {
-      await User.findByIdAndUpdate(employeeId, {
-        shift: defaultShift,
-        weeklyOffDays: defaultOffDays
-      });
+    // Propagate default shift & off-days to user profile
+    if (defaultShift || defaultOffDays) {
+      const updateFields = {};
+      if (defaultShift) updateFields.shift = defaultShift;
+      if (defaultOffDays) updateFields.weeklyOffDays = defaultOffDays;
+      await User.findByIdAndUpdate(employeeId, updateFields);
+    }
+
+    // Sync AuxSchedule for this employee and month
+    try {
+      await AuxSchedule.findOneAndUpdate(
+        { userId: employeeId, month },
+        {
+          userId: employeeId,
+          month,
+          plannedLiveMinutes: Number(defaultLiveTarget || 480),
+          plannedBreakMinutes: Number(defaultBreakTarget || 60),
+          plannedTrainingMinutes: Number(defaultTrainingTarget || 0),
+          plannedCoachingMinutes: Number(defaultCoachingTarget || 0),
+          status: 'Published',
+          publishedAt: new Date()
+        },
+        { upsert: true, new: true }
+      );
+    } catch (auxErr) {
+      console.error('AuxSchedule sync warning:', auxErr.message);
     }
 
     res.json({ success: true, data: schedule });
