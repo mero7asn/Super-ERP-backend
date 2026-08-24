@@ -587,7 +587,7 @@ exports.getDetailedSchedule = async (req, res) => {
 
 exports.updateDetailedSchedule = async (req, res) => {
   try {
-    const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides, defaultLiveTarget, defaultBreakTarget, defaultTrainingTarget, defaultCoachingTarget } = req.body;
+    const { employeeId, month, defaultShift, defaultOffDays, weeklyOverrides, dailyOverrides, defaultLiveTarget, defaultBreakTarget, defaultTrainingTarget, defaultCoachingTarget, breakSlots } = req.body;
 
     const isHR = ['HRM System Administrator', 'HR Manager', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect'].includes(req.user.role);
     if (!isHR) {
@@ -605,6 +605,7 @@ exports.updateDetailedSchedule = async (req, res) => {
     if (defaultBreakTarget !== undefined) schedule.defaultBreakTarget = defaultBreakTarget;
     if (defaultTrainingTarget !== undefined) schedule.defaultTrainingTarget = defaultTrainingTarget;
     if (defaultCoachingTarget !== undefined) schedule.defaultCoachingTarget = defaultCoachingTarget;
+    if (breakSlots !== undefined) schedule.breakSlots = breakSlots;
     if (weeklyOverrides !== undefined) {
       schedule.weeklyOverrides = weeklyOverrides;
       schedule.markModified('weeklyOverrides');

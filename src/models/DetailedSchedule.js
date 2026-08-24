@@ -35,6 +35,15 @@ const detailedScheduleSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Break time slots - defines exact break times within shift window
+  breakSlots: {
+    type: [{
+      start: String,    // "HH:MM" format
+      end: String,      // "HH:MM" format
+      type: { type: String, default: 'Break / Rest' }
+    }],
+    default: [{ start: '12:00', end: '13:00', type: 'Break / Rest' }]
+  },
   // Weekly overrides (e.g., Week 1, Week 2, Week 3, Week 4, Week 5)
   weeklyOverrides: {
     type: Map,
