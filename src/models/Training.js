@@ -24,6 +24,14 @@ const trainingSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  startTime: {
+    type: String, // "HH:MM" format
+    default: null
+  },
+  endTime: {
+    type: String, // "HH:MM" format
+    default: null
+  },
   status: {
     type: String,
     enum: ['Assigned', 'In Progress', 'Completed'],

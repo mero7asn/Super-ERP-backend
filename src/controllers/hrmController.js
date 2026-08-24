@@ -656,32 +656,47 @@ exports.updateDetailedSchedule = async (req, res) => {
 // --- 4. TRAINING & AUX STATUS ---
 exports.createTraining = async (req, res) => {
   try {
-    const { employeeId, type, assignedTrainerId, topic, scheduledDate } = req.body;
+    const { employeeId, type, assignedTrainerId, topic, scheduledDate, startTime, endTime } = req.body;
     const training = await Training.create({
       employeeId,
       type,
       assignedTrainerId,
       topic,
       scheduledDate: scheduledDate || null,
+      startTime: startTime || null,
+      endTime: endTime || null,
       status: 'Assigned'
     });
 
     // Fetch related users
     const trainer = await User.findById(assignedTrainerId);
     const student = await User.findById(employeeId);
-    const manager = student?.supervisor ? await User.findById(supervisor) : null;
+    const manager = student?.supervisor ? await User.findById(student.supervisor) : null;
 
     // ── 1. Reflect training on employee's schedule (DetailedSchedule) ──
     if (scheduledDate && student) {
       const month = scheduledDate.substring(0, 7); // "YYYY-MM"
+      
+      // Calculate training duration from start/end times
+      let trainingMinutes = 420; // default 7 hours
+      if (startTime && endTime) {
+        const [startH, startM] = startTime.split(':').map(Number);
+        const [endH, endM] = endTime.split(':').map(Number);
+        trainingMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+        if (trainingMinutes < 0) trainingMinutes += 24 * 60; // overnight
+      }
+
+      // Build day override with precise time window
       const dayOverride = {
-        shift: 'Training Day',
+        shift: startTime && endTime ? `Training (${startTime} - ${endTime})` : 'Training Day',
         isOffDay: false,
+        customStartTime: startTime || null,
+        customEndTime: endTime || null,
         liveTarget: 0,
         breakTarget: 60,
-        trainingTarget: 420,
+        trainingTarget: trainingMinutes,
         coachingTarget: 0,
-        overrideReason: `Training: ${topic}`,
+        overrideReason: `Training: ${topic}${startTime && endTime ? ` [${startTime}-${endTime}]` : ''}`,
         source: 'HR'
       };
 
@@ -698,14 +713,17 @@ exports.createTraining = async (req, res) => {
       await schedule.save();
     }
 
-    // ── 2. Send email notifications ──
+    // ── 2. Send email notifications with precise times ──
     if (trainer && student) {
+      const timeStr = startTime && endTime ? ` from ${startTime} to ${endTime}` : '';
+      const dateTimeStr = scheduledDate ? `${scheduledDate}${timeStr}` : 'TBD';
+
       // Email to Trainer (person giving training)
       await Email.create({
         senderId: req.user._id,
         recipientId: trainer._id,
         subject: `Training Assignment: ${topic}`,
-        body: `Hello ${trainer.firstName},\n\nYou have been assigned to deliver training on "${topic}" to ${student.firstName} ${student.lastName}${scheduledDate ? ` on ${scheduledDate}` : ''}.\n\nStudent Role: ${student.role}\nType: ${type}\n\nPlease coordinate with the employee and submit a follow-up report upon completion.\n\nBest regards,\nTraining Department`
+        body: `Hello ${trainer.firstName},\n\nYou have been assigned to deliver training on "${topic}" to ${student.firstName} ${student.lastName}.\n\nDate/Time: ${dateTimeStr}\nStudent Role: ${student.role}\nType: ${type}\n\nPlease coordinate with the employee and submit a follow-up report upon completion.\n\nBest regards,\nTraining Department`
       });
 
       // Email to Employee (person getting training) with manager in CC
@@ -715,13 +733,13 @@ exports.createTraining = async (req, res) => {
         recipientId: student._id,
         cc: ccList,
         subject: `Training Scheduled: ${topic}`,
-        body: `Hello ${student.firstName},\n\nYou have been enrolled in a training program.\n\nTopic: ${topic}\nTrainer: ${trainer.firstName} ${trainer.lastName}${scheduledDate ? `\nDate: ${scheduledDate}` : ''}\nType: ${type}\n\nPlease check your schedule for the assigned training time.\n\nBest regards,\nTraining Department`
+        body: `Hello ${student.firstName},\n\nYou have been enrolled in a training program.\n\nTopic: ${topic}\nTrainer: ${trainer.firstName} ${trainer.lastName}\nDate/Time: ${dateTimeStr}\nType: ${type}\n\nPlease check your schedule for the assigned training time.\n\nBest regards,\nTraining Department`
       });
     }
 
     // ── 3. RTM notification if training is within 48 hours ──
     if (scheduledDate) {
-      const trainingDate = new Date(scheduledDate);
+      const trainingDate = new Date(scheduledDate + (startTime ? `T${startTime}:00` : 'T00:00:00'));
       const now = new Date();
       const hoursUntilTraining = (trainingDate - now) / (1000 * 60 * 60);
 
@@ -731,13 +749,14 @@ exports.createTraining = async (req, res) => {
           role: { $in: ['RTM Team Member', 'CRM core Administrator', 'HRM System Administrator', 'Super Admin', 'Super CRM Administrator'] }
         });
 
+        const timeStr = startTime && endTime ? ` (${startTime} - ${endTime})` : '';
         for (const rtm of rtmMembers) {
           await Email.create({
             senderId: req.user._id,
             recipientId: rtm._id,
             cc: manager ? [manager._id] : [],
             subject: `RTM Alert: Training Within 48 Hours - ${student?.firstName} ${student?.lastName}`,
-            body: `RTM Notification,\n\nA training session is scheduled within 48 hours.\n\nEmployee: ${student?.firstName} ${student?.lastName}\nTopic: ${topic}\nTrainer: ${trainer?.firstName} ${trainer?.lastName}\nDate: ${scheduledDate}\n\nPlease ensure coverage as the employee will be in training during this time.\n\nBest regards,\nTraining Department`
+            body: `RTM Notification,\n\nA training session is scheduled within 48 hours.\n\nEmployee: ${student?.firstName} ${student?.lastName}\nTopic: ${topic}\nTrainer: ${trainer?.firstName} ${trainer?.lastName}\nDate: ${scheduledDate}${timeStr}\n\nPlease ensure coverage as the employee will be in training during this time.\n\nBest regards,\nTraining Department`
           });
         }
       }
@@ -745,7 +764,7 @@ exports.createTraining = async (req, res) => {
 
     res.status(201).json({ success: true, data: training });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error', error: message });
   }
 };
 
