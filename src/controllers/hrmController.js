@@ -666,17 +666,80 @@ exports.createTraining = async (req, res) => {
       status: 'Assigned'
     });
 
-    // Auto-Email Supervisor if Technical Training
-    if (type === 'Technical') {
-      const trainer = await User.findById(assignedTrainerId);
-      const student = await User.findById(employeeId);
-      if (trainer && student) {
-        await Email.create({
-          senderId: req.user._id,
-          recipientId: trainer._id,
-          subject: `Technical Training Assignment: ${student.firstName} ${student.lastName}`,
-          body: `Hello ${trainer.firstName},\n\nYou have been assigned as the technical trainer for ${student.firstName} ${student.lastName} (Role: ${student.role}) on the topic: "${topic}".\n\nPlease coordinate their sessions and submit a report upon completion.\n\nBest regards,\nCore 360 Training Department`
+    // Fetch related users
+    const trainer = await User.findById(assignedTrainerId);
+    const student = await User.findById(employeeId);
+    const manager = student?.supervisor ? await User.findById(supervisor) : null;
+
+    // ── 1. Reflect training on employee's schedule (DetailedSchedule) ──
+    if (scheduledDate && student) {
+      const month = scheduledDate.substring(0, 7); // "YYYY-MM"
+      const dayOverride = {
+        shift: 'Training Day',
+        isOffDay: false,
+        liveTarget: 0,
+        breakTarget: 60,
+        trainingTarget: 420,
+        coachingTarget: 0,
+        overrideReason: `Training: ${topic}`,
+        source: 'HR'
+      };
+
+      let schedule = await DetailedSchedule.findOne({ employeeId, month });
+      if (!schedule) {
+        schedule = new DetailedSchedule({ employeeId, month });
+      }
+
+      // Set daily override for training day
+      const dailyOverrides = schedule.dailyOverrides || {};
+      dailyOverrides[scheduledDate] = dayOverride;
+      schedule.dailyOverrides = dailyOverrides;
+      schedule.markModified('dailyOverrides');
+      await schedule.save();
+    }
+
+    // ── 2. Send email notifications ──
+    if (trainer && student) {
+      // Email to Trainer (person giving training)
+      await Email.create({
+        senderId: req.user._id,
+        recipientId: trainer._id,
+        subject: `Training Assignment: ${topic}`,
+        body: `Hello ${trainer.firstName},\n\nYou have been assigned to deliver training on "${topic}" to ${student.firstName} ${student.lastName}${scheduledDate ? ` on ${scheduledDate}` : ''}.\n\nStudent Role: ${student.role}\nType: ${type}\n\nPlease coordinate with the employee and submit a follow-up report upon completion.\n\nBest regards,\nTraining Department`
+      });
+
+      // Email to Employee (person getting training) with manager in CC
+      const ccList = manager ? [manager._id] : [];
+      await Email.create({
+        senderId: req.user._id,
+        recipientId: student._id,
+        cc: ccList,
+        subject: `Training Scheduled: ${topic}`,
+        body: `Hello ${student.firstName},\n\nYou have been enrolled in a training program.\n\nTopic: ${topic}\nTrainer: ${trainer.firstName} ${trainer.lastName}${scheduledDate ? `\nDate: ${scheduledDate}` : ''}\nType: ${type}\n\nPlease check your schedule for the assigned training time.\n\nBest regards,\nTraining Department`
+      });
+    }
+
+    // ── 3. RTM notification if training is within 48 hours ──
+    if (scheduledDate) {
+      const trainingDate = new Date(scheduledDate);
+      const now = new Date();
+      const hoursUntilTraining = (trainingDate - now) / (1000 * 60 * 60);
+
+      if (hoursUntilTraining <= 48 && hoursUntilTraining >= 0) {
+        // Find RTM team members and notify them
+        const rtmMembers = await User.find({
+          role: { $in: ['RTM Team Member', 'CRM core Administrator', 'HRM System Administrator', 'Super Admin', 'Super CRM Administrator'] }
         });
+
+        for (const rtm of rtmMembers) {
+          await Email.create({
+            senderId: req.user._id,
+            recipientId: rtm._id,
+            cc: manager ? [manager._id] : [],
+            subject: `RTM Alert: Training Within 48 Hours - ${student?.firstName} ${student?.lastName}`,
+            body: `RTM Notification,\n\nA training session is scheduled within 48 hours.\n\nEmployee: ${student?.firstName} ${student?.lastName}\nTopic: ${topic}\nTrainer: ${trainer?.firstName} ${trainer?.lastName}\nDate: ${scheduledDate}\n\nPlease ensure coverage as the employee will be in training during this time.\n\nBest regards,\nTraining Department`
+          });
+        }
       }
     }
 

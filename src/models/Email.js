@@ -11,6 +11,11 @@ const emailSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  cc: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
   subject: {
     type: String,
     required: true
