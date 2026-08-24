@@ -19,7 +19,13 @@ exports.getCampaigns = async (req, res) => {
 // @access  Private (Marketing roles + Admin)
 exports.createCampaign = async (req, res) => {
   try {
-    const campaign = await Campaign.create({ ...req.body, manager: req.user._id });
+    const payload = { ...req.body };
+    if (!payload.startDate || String(payload.startDate).trim() === '') delete payload.startDate;
+    if (!payload.endDate || String(payload.endDate).trim() === '') delete payload.endDate;
+    if (payload.budget !== undefined && payload.budget !== '') {
+      payload.budget = Number(payload.budget);
+    }
+    const campaign = await Campaign.create({ ...payload, manager: req.user._id });
     res.status(201).json({ success: true, data: campaign });
   } catch (error) {
     res.status(400).json({ message: 'Failed to create campaign', error: error.message });
@@ -31,7 +37,13 @@ exports.createCampaign = async (req, res) => {
 // @access  Private
 exports.updateCampaign = async (req, res) => {
   try {
-    const campaign = await Campaign.findByIdAndUpdate(req.params.id, req.body, {
+    const payload = { ...req.body };
+    if (!payload.startDate || String(payload.startDate).trim() === '') delete payload.startDate;
+    if (!payload.endDate || String(payload.endDate).trim() === '') delete payload.endDate;
+    if (payload.budget !== undefined && payload.budget !== '') {
+      payload.budget = Number(payload.budget);
+    }
+    const campaign = await Campaign.findByIdAndUpdate(req.params.id, payload, {
       new: true, runValidators: true
     }).populate('manager', 'firstName lastName email');
     if (!campaign) return res.status(404).json({ message: 'Campaign not found' });

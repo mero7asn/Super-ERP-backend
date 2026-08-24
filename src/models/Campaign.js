@@ -7,7 +7,7 @@ const campaignSchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['Meta', 'Google', 'Email', 'Other'],
+    enum: ['Meta', 'Google', 'Email', 'WhatsApp', 'Other'],
     required: [true, 'Platform is required']
   },
   status: {
