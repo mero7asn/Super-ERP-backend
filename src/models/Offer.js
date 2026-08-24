@@ -44,7 +44,6 @@ const offerSchema = new mongoose.Schema({
   },
   recordLocator: {
     type: String,
-    default: null,
     unique: true,
     sparse: true
   },
@@ -115,7 +114,6 @@ const offerSchema = new mongoose.Schema({
   // Unique, non-guessable token used in the public payment link (/pay/:token).
   paymentToken: {
     type: String,
-    default: null,
     unique: true,
     sparse: true
   },

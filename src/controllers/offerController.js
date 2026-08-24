@@ -194,8 +194,8 @@ exports.createOffer = async (req, res) => {
     const currencyInfo = Array.isArray(currencyInfoSetting?.value) ? currencyInfoSetting.value.find((entry) => String(entry?.code || '').toUpperCase() === currencyCode) : null;
     const resolvedCurrencySymbol = currencySymbol || currencyInfo?.symbol || '';
     const minSetting = await SystemSetting.findOne({ key: offerType === 'Product' ? 'productPriceMin' : 'offerPriceMin' });
-    const minPrice = minSetting?.value ?? 0;
-    if (numPrice < minPrice) {
+    const minPrice = minSetting?.value !== undefined && minSetting?.value !== null ? Number(minSetting.value) : 0;
+    if (Number.isFinite(minPrice) && minPrice > 0 && numPrice < minPrice) {
       return res.status(400).json({ message: `Minimum price for ${offerType === 'Product' ? 'product' : 'offer'} is ${minPrice.toFixed(2)}` });
     }
 
@@ -210,16 +210,20 @@ exports.createOffer = async (req, res) => {
 
     let parsedCatalogProduct = null;
     if (catalogProduct && String(catalogProduct).trim() !== '') {
-      try {
-        parsedCatalogProduct = require('mongoose').Types.ObjectId(String(catalogProduct).trim());
-      } catch {
+      const prodStr = String(catalogProduct).trim();
+      if (mongoose.isValidObjectId(prodStr)) {
+        parsedCatalogProduct = new mongoose.Types.ObjectId(prodStr);
+      } else {
         return res.status(400).json({ message: 'Invalid catalog product selected' });
       }
     }
 
-    const isAdmin = ['Super CRM Administrator', 'Super Admin', 'Administrator', 'Super CRM Administrator', 'Super Admin', 'Administrator', 'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'].includes(req.user.role);
-    const isManager = req.user.role === 'Sales Manager';
-    const isAgent = req.user.role === 'Sales Agent';
+    const isAdmin = [
+      'Super CRM Administrator', 'Super Admin', 'Administrator',
+      'CRM core Administrator', 'Core 360 Administrator', 'System Architect', 'Executive User'
+    ].includes(req.user?.role);
+    const isManager = req.user?.role === 'Sales Manager';
+    const isAgent = req.user?.role === 'Sales Agent';
 
     if (isAgent && leadDoc.assignedTo?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to create offers for this lead' });
@@ -251,23 +255,17 @@ exports.createOffer = async (req, res) => {
       notes: notes ? String(notes).trim() : ''
     };
 
-    // Some deployed DBs incorrectly have non-sparse unique indexes on nullable
-    // fields. Create offers without generating payment / booking references
-    // so record locators are only created when required by payment/acceptance.
     const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-          const candidate = { ...baseOffer };
-          // Use raw collection insert to avoid triggering Mongoose pre-save hooks
-          // that may behave differently in serverless deployments and cause
-          // unexpected transformations.
-          const now = new Date();
-          const insertDoc = { ...candidate, createdAt: now, updatedAt: now };
-          delete insertDoc.recordLocator;
-          delete insertDoc.bookingRef;
-          delete insertDoc.paymentToken;
-          const res = await Offer.collection.insertOne(insertDoc);
-          offer = await Offer.findById(res.insertedId);
+        const candidate = { ...baseOffer };
+        const now = new Date();
+        const insertDoc = { ...candidate, createdAt: now, updatedAt: now };
+        delete insertDoc.recordLocator;
+        delete insertDoc.bookingRef;
+        delete insertDoc.paymentToken;
+        const insertResult = await Offer.collection.insertOne(insertDoc);
+        offer = await Offer.findById(insertResult.insertedId);
         break;
       } catch (err) {
         if (err && err.code === 11000) {
@@ -282,7 +280,7 @@ exports.createOffer = async (req, res) => {
     }
 
     const populated = await offer.populate('createdBy', 'firstName lastName role');
-    res.status(201).json({ success: true, data: populated });
+    return res.status(201).json({ success: true, data: populated });
   } catch (error) {
     const debugId = (req && req.requestId) || crypto.randomBytes(6).toString('hex');
     console.error(`[createOffer] unexpected error (id=${debugId}):`, error && error.message);
