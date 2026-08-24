@@ -61,6 +61,7 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const supplyChainRoutes = require('./routes/supplyChainRoutes');
 const accountingRoutes = require('./routes/accountingRoutes');
 const templateRoutes = require('./routes/templateRoutes');
+const talentAcquisitionRoutes = require('./routes/talentAcquisitionRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -82,6 +83,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/supply-chain', supplyChainRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/templates', templateRoutes);
+app.use('/api/talent', talentAcquisitionRoutes);
 
 app.get('/', (req, res) => {
   res.send('CRM Backend API is running...');
