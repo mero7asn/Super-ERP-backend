@@ -6,8 +6,9 @@ const connectDB = require('./config/db');
 
 dotenv.config();
 
-connectDB().catch(err => {
+const dbConnection = connectDB().catch(err => {
   console.error('Unexpected error during DB connection:', err);
+  return null;
 });
 
 const app = express();
@@ -35,6 +36,15 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Health check route
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Super CRM API is running', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'API is healthy', timestamp: new Date().toISOString() });
+});
 
 const requestLogger = require('./middleware/requestLogger');
 app.use(requestLogger);
