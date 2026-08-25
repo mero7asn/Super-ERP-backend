@@ -277,7 +277,9 @@ const runStartupTasks = () => {
     console.error('[Startup] Error running startup tasks:', err.message);
   }
 };
-runStartupTasks();
+runStartupTasks().catch(err => {
+  console.error('[Startup] Failed to run startup tasks:', err.message);
+});
 
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
