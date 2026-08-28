@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const cron = require('node-cron');
@@ -6,36 +7,51 @@ const connectDB = require('./config/db');
 
 dotenv.config();
 
-const dbConnection = connectDB().catch(err => {
-  console.error('Unexpected error during DB connection:', err);
-  return null;
+// Attempt initial connection in background
+connectDB().catch(err => {
+  console.error('Initial DB connection attempt error:', err?.message || err);
 });
 
 const app = express();
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin || '*';
-  if (origin && origin !== '*') {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  const requestHeaders = req.headers['access-control-request-headers'];
-  if (requestHeaders) {
-    res.setHeader('Access-Control-Allow-Headers', requestHeaders);
-  } else {
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Max-Age', '86400');
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Return true to echo back request origin and allow credentials
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+
+// Ensure database connection is ready for incoming requests in serverless environments
+app.use(async (req, res, next) => {
   if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    return next();
+  }
+  try {
+    await connectDB();
+  } catch (dbErr) {
+    console.error('Request DB connection error:', dbErr?.message || dbErr);
   }
   next();
 });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 // Health check route
 app.get('/', (req, res) => {
@@ -277,10 +293,26 @@ const runStartupTasks = () => {
     console.error('[Startup] Error running startup tasks:', err.message);
   }
 };
-try {
-  runStartupTasks();
-} catch (err) {
-  console.error('[Startup] Failed to run startup tasks:', err.message);
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    error: process.env.NODE_ENV === 'production' ? undefined : err.message
+  });
+});
+
+if (require.main === module || !process.env.VERCEL) {
+  try {
+    runStartupTasks();
+  } catch (err) {
+    console.error('[Startup] Failed to run startup tasks:', err.message);
+  }
 }
 
 if (require.main === module) {
@@ -289,3 +321,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
+
