@@ -843,48 +843,10 @@ exports.getRecruitmentActivity = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(parseInt(limit));
 
+
     res.json({ success: true, data: activities });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-module.exports = {
-  // Requisitions
-  createJobRequisition,
-  getJobRequisitions,
-  getJobRequisitionById,
-  updateJobRequisition,
-  updateRequisitionStatus,
-  convertRequisitionToJob,
-  // Jobs
-  createJob,
-  getJobs,
-  getJobById,
-  updateJob,
-  updateJobStatus,
-  // Job Descriptions
-  createJobDescription,
-  updateJobDescription,
-  getJobDescriptions,
-  // Publications
-  createJobPublication,
-  getJobPublications,
-  updateJobPublication,
-  // Candidates
-  createCandidate,
-  getCandidates,
-  updateApplicationStatus,
-  // Interviews
-  scheduleInterview,
-  getInterviews,
-  submitInterviewFeedback,
-  // Offers
-  createOffer,
-  getOffers,
-  updateOfferStatus,
-  // Analytics
-  getTalentAcquisitionOverview,
-  getRecruitmentFunnel,
-  getRecruitmentActivity
-};
