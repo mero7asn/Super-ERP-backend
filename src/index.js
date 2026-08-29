@@ -7,10 +7,12 @@ const connectDB = require('./config/db');
 
 dotenv.config();
 
-// Attempt initial connection in background
-connectDB().catch(err => {
-  console.error('Initial DB connection attempt error:', err?.message || err);
-});
+// Attempt initial connection in local/standalone mode
+if (!process.env.VERCEL) {
+  connectDB().catch(err => {
+    console.error('Initial DB connection attempt error:', err?.message || err);
+  });
+}
 
 const app = express();
 
@@ -36,11 +38,16 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Ensure database connection is ready for incoming requests in serverless environments
-app.use(async (req, res, next) => {
+// Handle all OPTIONS preflight requests immediately with 204
+app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
-    return next();
+    return res.status(204).end();
   }
+  next();
+});
+
+// Ensure database connection is ready for incoming non-OPTIONS requests in serverless environments
+app.use(async (req, res, next) => {
   try {
     await connectDB();
   } catch (dbErr) {
