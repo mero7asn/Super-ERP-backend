@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const bdCulture = require('../controllers/bdcultureController');
+const bdCulture = require('../controllers/bdCultureController');
 
 router.use(protect);
 
